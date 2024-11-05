@@ -1,68 +1,135 @@
-# School of Computing  
+
+# School of Computing
+
 **CA326 Year 3 Project Proposal Form**
 
-## Project Title:  
-**Pet Training App / Journal**
+  
 
-### Students:  
-**Student 1 Name**: Kevin Fasan  
-**ID Number**: 22379321  
+## Project Title: **SmartSplit**
 
-**Student 2 Name**: Nkemjika Onwumereh  
-**ID Number**: 22452576  
+  
 
-### Staff Member Consulted:  
-Boualem Benatallah  
+### Students:
 
-### Project Description (1-2 pages):
+**Student 1 Name**: Kevin Fasan
 
-Our proposed project is a comprehensive **pet training and journal app** designed to cater to the needs of pet owners who want to track their pets' health, behavior, and training progress. The app would serve as a central hub where pet owners can log vital information about their pets, monitor behavioral patterns, and keep a detailed history that can assist veterinarians and trainers in making more informed decisions about their pets' care.
+**ID Number**: 22379321
 
-#### Core Features:
+  
 
-1. **Pet Profile Management**: 
-   Owners will be able to create and manage detailed profiles for each of their pets. This includes important data such as the pet’s name, breed, age, weight, height, and medical history. For example, if an owner has a dog named “Billy,” they can log all essential details about Billy, including any known medical conditions, vaccinations, or ongoing treatments. This feature will serve as a quick reference guide for pet owners to review their pet's health and medical information.
+**Student 2 Name**: Nkemjika Onwumereh
 
-2. **Daily Activity Logging**: 
-   A significant part of the app will focus on logging daily behaviors and activities. Owners can note specific events throughout the day, such as feeding times, exercise routines, unusual behavior, and interactions with other pets or people. For instance, a user could log, "Billy was anxious today and didn’t eat much." This feature will be especially valuable for tracking patterns over time, such as behavioral changes, feeding habits, or reactions to new environments, which can offer insights into the pet’s overall well-being.
+**ID Number**: 22452576
 
-3. **Veterinary and Health Insights**: 
-   The app would allow users to generate reports based on their logged data. These reports could be easily shared with veterinarians or trainers, providing a detailed overview of the pet's recent health history and behaviors. This functionality ensures that during vet visits, the owner can provide a comprehensive history of symptoms, behaviors, and lifestyle patterns, improving diagnostic accuracy.
+  
 
-4. **Training Logs and Reminders**: 
-   In addition to health tracking, the app would offer a section for training logs, where owners can document their pet’s progress in specific training exercises (e.g., obedience, tricks, agility). The system would allow users to set reminders for training sessions or medication schedules, helping owners stay consistent with their pet’s routines. This is particularly useful for new pet owners or those adopting pets with specialized care needs.
+### Staff Member Consulted:
 
-#### LLM-Powered Assistance:
+Boualem Benatallah
 
-One of the innovative aspects of our project is the integration of a **Large Language Model (LLM)**, which would act as a smart assistant for pet owners. This AI-driven feature will allow users to ask questions about their pet’s behavior, health, or training and receive detailed, informed responses tailored to the specific attributes of their pet.
+  
 
-- **Contextual Responses**: 
-  The LLM will not only rely on general information but will also be trained to incorporate the data provided by the user about their specific pet. For instance, if an owner of a French bulldog named “Billy” asks, “Why does Billy seem to be squinting and rubbing his eye?” the LLM could analyze Billy’s breed information (knowing that French bulldogs are prone to conditions like cherry eye) and respond with possible explanations for the symptoms, such as cherry eye or allergies. This allows the owner to understand the potential health issues and decide on the best course of action.
+##  Project Description (1-2 pages):
 
-- **Interactive Q&A**: 
-  The LLM will also provide users with the ability to ask general questions about pet care, such as, “What are common signs of anxiety in dogs?” or “How often should I bathe my cat?” The model would generate answers based on online resources and verified information from veterinary sources, giving owners quick and reliable guidance.
+  
 
-- **Training Insights**: 
-  Another planned feature is for the LLM to offer training tips and tricks based on the user’s pet profile. For example, if the owner logs that their dog is a hyperactive breed like a Border Collie, the LLM could provide specific suggestions on how to keep the pet engaged mentally and physically, as well as common mistakes to avoid during training.
+SmartSplit is an intelligent mobile app designed to streamline bill-splitting among friends. Using machine learning, the app allows users to take a picture of a receipt, assign items to each person, and automatically calculate individual totals, including tax and tip. The app includes payment integration, allowing friends to settle their bills directly within the app. SmartSplit aims to eliminate the hassle of manual calculations and payment logistics, offering a seamless, user-friendly experience for group dining.
 
-#### Division of Work:  
-- **Kevin Fasan**: Frontend, Backend  
-- **Nkemjika Onwumereh**: Database, LLM  
+  
 
-### Programming Tools:  
-- **Backend**: Python - Django  
-- **Frontend**: JavaScript - React.js  
-- **Database**: Firebase  
-- **LLM**: Gemini / ChatGPT  
+#### Project Objectives:
 
-### Learning Challenges:
+  
 
-The primary challenge lies in the successful integration of the LLM into our web and mobile app, especially in terms of making API calls and training the model on specific pet-related data. While existing LLMs like ChatGPT or Gemini are powerful, adapting them to our app to ensure they provide accurate and context-aware responses based on the data the owner feeds into the app will require substantial effort. We will also need to account for how the model handles sensitive medical information and how it presents these insights to non-technical users.
+1.  **Automate Receipt Recognition**: Implement Optical Character Recognition (OCR) to scan and interpret receipt items and prices from images.
 
-Additionally, we will face challenges in designing the user interface to make it intuitive and accessible for all pet owners, ensuring a seamless user experience across both web and mobile platforms.
+2.  **Easy Item Assignment**: Enable users to assign receipt items to specific friends and split shared items.
 
-### Hardware / Platform:  
-PC / Linux  
+3.  **Accurate Cost Calculation**: Calculate individual costs, including tax and tip, based on assigned items.
 
-**Special hardware/software requirements**:  
+4.  **Integrated Payment Solution**: Incorporate payment functionality to allow users to pay each other directly within the app and use Virtual Cards to pay totals at restaurants.
+
+5.  **Expense History and Summaries**: Track past bills and provide summaries for each group.
+
+6.  **Payment Requests and Reminders**: Send payment requests or reminders through the app, linking directly to payment services.
+
+  
+
+## Programming Tools:
+
+### Frontend (Mobile Application)
+
+  
+
+- Platform: iOS (Swift) or Android (Kotlin), or use a cross-platform framework like React Native or Flutter.
+
+- OCR Integration: Integrate with an OCR service like Google Cloud Vision or Tesseract to scan and interpret receipt images.
+
+- User Interface: Design an intuitive UI for image uploading, item assignment, and cost display.
+
+### Backend
+
+  
+
+- Cloud-Based Backend (e.g., Firebase, AWS, or Google Cloud): Host the backend for real-time data handling, storage, and user authentication.
+
+- Database: Use a database (e.g., Firestore, MySQL, or PostgreSQL) to store user data, bills, item allocations, and payment records.
+
+- API: Develop API to handle requests from the mobile app for processing receipt items, calculating costs, and storing bill records.
+
+  
+
+### Machine Learning (OCR and NLP)
+
+  
+
+- OCR Model: Use a pretrained OCR model, such as Tesseract OCR or Google Cloud Vision, to recognize and extract text from images.
+
+- Natural Language Processing (NLP): Develop a NLP component to interpret receipt items and prices, recognizing common receipt structures and categorizing items.
+
+  
+
+### Payment Integration
+
+  
+
+- Payment API Integration: Use Stripe API to handle transactions and generate Virtual Cards.
+
+- Transaction Tracking: Maintain transaction logs and integrate notifications for successful payments or payment reminders.
+
+- Payment Requests: Allow users to request payment from friends within the app, generating reminders and sending push notifications.
+
+  
+
+## Division of Work:
+
+-  **Kevin Fasan**: Frontend, Payment Integration
+
+-  **Nkemjika Onwumereh**: Backend, Machine Learning
+
+  
+
+## Learning Challenges:
+
+  
+
+-  **OCR and NLP Accuracy**: Ensuring accurate recognition of receipt items with various fonts and layouts.
+
+-  **Implementation of Stripe API**: To handle payments across the app and generation of Virtual Cards.
+
+-  **App Development**: Designing an intuitive application utilizing relevant frameworks (Kotlin / Swift).
+
+  
+  
+
+## Hardware / Platform:
+
+PC / Linux
+
+Android
+
+  
+
+**Special hardware/software requirements**:
+
 N/A
