@@ -16,12 +16,19 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/code/app/src/main/res/layout/activity_main.xml" afterDir="false" />
+    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="Very basic bill splitting functionality">
+      <change afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/AndroidManifest.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/app/src/main/res/layout/activity_main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/res/layout/activity_main.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/code/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/gradle/libs.versions.toml" beforeDir="false" afterPath="$PROJECT_DIR$/code/gradle/libs.versions.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/code/settings.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,7 +38,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=LocalEmulator, isTemplate=false, identifier=path=C:\Users\nkemj\.android\avd\Pixel_9_API_35.avd)]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=LocalEmulator, isTemplate=false, identifier=path=C:\Users\nkemj\.android\avd\Medium_Phone.avd)]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$/code">
       <ProjectState />
@@ -56,6 +63,7 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="layoutResourceFile_vertical" />
+        <option value="Kotlin Class" />
       </list>
     </option>
   </component>
@@ -67,22 +75,22 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitLabMergeRequestFiltersHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPENED",
-    "assignee": {
-      "type": "org.jetbrains.plugins.gitlab.mergerequest.ui.filters.GitLabMergeRequestsFiltersValue.MergeRequestsMemberFilterValue.MergeRequestsAssigneeFilterValue",
-      "username": "project_19176_bot_208ee21c4d454f4eee20384a05995fd9",
-      "fullname": "kem"
+  <component name="GitLabMergeRequestFiltersHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPENED&quot;,
+    &quot;assignee&quot;: {
+      &quot;type&quot;: &quot;org.jetbrains.plugins.gitlab.mergerequest.ui.filters.GitLabMergeRequestsFiltersValue.MergeRequestsMemberFilterValue.MergeRequestsAssigneeFilterValue&quot;,
+      &quot;username&quot;: &quot;project_19176_bot_208ee21c4d454f4eee20384a05995fd9&quot;,
+      &quot;fullname&quot;: &quot;kem&quot;
     }
   }
-}]]></component>
-  <component name="GitLabMergeRequestsSettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "first": "https://gitlab.computing.dcu.ie/fasank2/2025-csc1049-kfasan-waggify.git",
-    "second": "095bf207-438d-409f-96b3-586c41147d20"
+}</component>
+  <component name="GitLabMergeRequestsSettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;first&quot;: &quot;https://gitlab.computing.dcu.ie/fasank2/2025-csc1049-kfasan-waggify.git&quot;,
+    &quot;second&quot;: &quot;095bf207-438d-409f-96b3-586c41147d20&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
 }</component>
@@ -99,14 +107,15 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
     &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;kem&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;C:/Tools/Gradle/gradle-8.12&quot;,
     &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.17&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;
   }
 }</component>
@@ -600,17 +609,43 @@
       <option name="presentableId" value="Default" />
       <updated>1736793365102</updated>
     </task>
+    <task id="LOCAL-00001" summary="Very basic bill splitting functionality">
+      <option name="closed" value="true" />
+      <created>1737334394677</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1737334394678</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Very basic bill splitting functionality">
+      <option name="closed" value="true" />
+      <created>1737334470001</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1737334470001</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Very basic bill splitting functionality" />
+    <option name="LAST_COMMIT_MESSAGE" value="Very basic bill splitting functionality" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">
       <map>
         <entry key="com.example.smartsplit.test">
           <value>
-            <CheckInfo lastCheckTimestamp="1736811664944" />
+            <CheckInfo lastCheckTimestamp="1737594969729" />
           </value>
         </entry>
         <entry />
+        <entry key="com.example.smartsplit">
+          <value>
+            <CheckInfo lastCheckTimestamp="1737594969729" />
+          </value>
+        </entry>
       </map>
     </option>
   </component>
