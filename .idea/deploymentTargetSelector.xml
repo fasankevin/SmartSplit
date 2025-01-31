@@ -7,7 +7,7 @@
       </SelectionState>
       <SelectionState runConfigName="SmartSplit.app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-01-13T23:41:39.209099700Z">
+        <DropdownSelection timestamp="2025-01-31T01:03:14.614812900Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\nkemj\.android\avd\Medium_Phone.avd" />
