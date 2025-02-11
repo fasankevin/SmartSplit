@@ -18,19 +18,21 @@
         android:paddingBottom="16dp" />
 
     <!-- Toggle Mode Button -->
+
+    <!-- Bill Splitter Section -->
     <Button
         android:id="@+id/toggleModeButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Switch to Chat Mode"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="16dp"
+        android:text="Switch to Chat Mode" />
 
-    <!-- Bill Splitter Section -->
     <LinearLayout
         android:id="@+id/billSplitterLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:visibility="visible">
 
         <!-- Bill Amount -->
         <EditText
@@ -46,41 +48,41 @@
             android:id="@+id/numPeopleEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:hint="Enter number of people"
             android:inputType="number"
-            android:padding="8dp"
-            android:layout_marginTop="8dp" />
+            android:padding="8dp" />
 
         <!-- Tip Percentage -->
         <EditText
             android:id="@+id/tipPercentageEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:hint="Enter tip percentage (optional)"
             android:inputType="numberDecimal"
-            android:padding="8dp"
-            android:layout_marginTop="8dp" />
+            android:padding="8dp" />
 
         <!-- Calculate Button -->
         <Button
             android:id="@+id/calculateButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Calculate"
             android:layout_marginTop="16dp"
-            android:padding="12dp" />
+            android:padding="12dp"
+            android:text="Calculate" />
 
         <!-- Result Display -->
         <TextView
             android:id="@+id/resultTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:paddingTop="16dp"
             android:text="Result will be displayed here"
             android:textSize="16sp"
-            android:textStyle="bold"
-            android:paddingTop="16dp"
-            android:gravity="center"
-            android:layout_marginTop="8dp" />
+            android:textStyle="bold" />
     </LinearLayout>
 
     <!-- Chat Section -->
@@ -97,27 +99,27 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
+
             <LinearLayout
                 android:id="@+id/chatMessagesContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
-            </LinearLayout>
+                android:orientation="vertical"></LinearLayout>
         </ScrollView>
 
         <!-- Message Input Row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <!-- Message Input -->
             <EditText
                 android:id="@+id/messageEditText"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:hint="Type your message"
                 android:padding="8dp" />
 
@@ -126,8 +128,8 @@
                 android:id="@+id/sendMessageButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Send"
-                android:layout_marginStart="8dp" />
+                android:layout_marginStart="8dp"
+                android:text="Send" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

@@ -208,7 +208,7 @@ fun BillSplitterMode(onCalculationComplete: (String) -> Unit) {
 @Composable
 fun CameraMode() {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var hasCameraPermission by remember { mutableStateOf(false) }
 
