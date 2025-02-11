@@ -72,6 +72,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+    implementation("com.google.firebase:firebase-firestore:25.1.1")
     implementation("androidx.compose.ui:ui:1.7.6")  // Modifier, Text, Button, etc.
     implementation("androidx.compose.material3:material3:1.3.1")  // Material components (e.g., Button, Text)
     implementation("androidx.compose.ui:ui-tooling-preview:1.7.0") // For Preview
@@ -100,6 +101,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("com.google.android.material:material:1.12.0")
+
+    implementation("com.google.mlkit:text-recognition:16.0.0")
 }
 
 

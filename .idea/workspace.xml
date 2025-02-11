@@ -26,20 +26,15 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="Progressed into camera development.">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/code/app/src/main/res/layout/activity_login.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/code/app/src/main/res/layout/activity_register.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/appInsightsSettings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/appInsightsSettings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="Authentication Completed">
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/res/values/strings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/res/values/strings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/res/values/themes.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/res/values/themes.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/code/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,7 +44,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=PhysicalDevice, isTemplate=false, identifier=serial=R3CT50JK15A)]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=LocalEmulator, isTemplate=false, identifier=path=C:\Users\nkemj\.android\avd\Pixel_9_API_35.avd)]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$/code">
       <ProjectState />
@@ -688,26 +683,35 @@
       <option name="project" value="LOCAL" />
       <updated>1737978625526</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Authentication Completed">
+      <option name="closed" value="true" />
+      <created>1738285843950</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1738285843950</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Very basic bill splitting functionality" />
     <MESSAGE value="Progressed into camera development." />
-    <option name="LAST_COMMIT_MESSAGE" value="Progressed into camera development." />
+    <MESSAGE value="Authentication Completed" />
+    <option name="LAST_COMMIT_MESSAGE" value="Authentication Completed" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">
       <map>
         <entry key="com.example.smartsplit.test">
           <value>
-            <CheckInfo lastCheckTimestamp="1738262532020" />
+            <CheckInfo lastCheckTimestamp="1739234685970" />
           </value>
         </entry>
         <entry />
         <entry key="com.example.smartsplit">
           <value>
-            <CheckInfo lastCheckTimestamp="1738262532020" />
+            <CheckInfo lastCheckTimestamp="1739234685972" />
           </value>
         </entry>
       </map>

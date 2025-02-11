@@ -1,5 +1,7 @@
 package com.example.smartsplit
 
+import android.content.Context
+import android.net.Uri
 import androidx.camera.view.PreviewView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -28,8 +31,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import coil.compose.rememberAsyncImagePainter
 import com.example.smartsplit.ui.theme.SmartSplitTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -206,28 +213,35 @@ fun BillSplitterMode(onCalculationComplete: (String) -> Unit) {
 }
 
 @Composable
-fun CameraMode() {
+fun CameraMode(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-    var hasCameraPermission by remember { mutableStateOf(false) }
 
-    val launcher = rememberLauncherForActivityResult(
+    var hasCameraPermission by remember { mutableStateOf(false) }
+    var extractedPrices by remember { mutableStateOf<List<String>>(emptyList()) }
+    var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isProcessing by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted -> hasCameraPermission = granted }
     )
 
     LaunchedEffect(Unit) {
-        launcher.launch(Manifest.permission.CAMERA)
+        permissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     if (hasCameraPermission) {
         val imageCapture = remember { ImageCapture.Builder().build() }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             AndroidView(
                 factory = { ctx -> PreviewView(ctx) },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f),
                 update = { previewView ->
                     val cameraProvider = cameraProviderFuture.get()
                     val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -243,7 +257,7 @@ fun CameraMode() {
                             imageCapture
                         )
                     } catch (e: Exception) {
-                        Log.e("Camera", "Error binding use cases: ${e.message}", e)
+                        Log.e("Camera", "Error binding camera: ${e.message}", e)
                     }
                 }
             )
@@ -258,26 +272,117 @@ fun CameraMode() {
                         ContextCompat.getMainExecutor(context),
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                Log.i("CameraMode", "Image saved: ${photoFile.absolutePath}")
+                                Log.i("CameraMode", "Image saved at: ${photoFile.absolutePath}")
+                                capturedImageUri = Uri.fromFile(photoFile)
+                                isProcessing = true
+
+                                // Extract text after image is captured
+                                extractPrices(context, capturedImageUri!!) { prices ->
+                                    extractedPrices = prices
+                                    isProcessing = false
+                                }
                             }
 
                             override fun onError(exception: ImageCaptureException) {
-                                Log.e("CameraMode", "Error capturing image: ${exception.message}")
+                                Log.e("CameraMode", "Capture failed: ${exception.message}", exception)
                             }
                         }
                     )
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
+                }
             ) {
                 Text("Capture Image")
             }
+
+            // Display the captured image
+            capturedImageUri?.let { uri ->
+                Image(
+                    painter = rememberAsyncImagePainter(uri),
+                    contentDescription = "Captured Image",
+                    modifier = Modifier.size(200.dp)
+                )
+            }
+
+            // Display processing message
+            if (isProcessing) {
+                CircularProgressIndicator()
+                Text("Processing image...")
+            }
+
+            // Display Extracted Prices
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+                if (extractedPrices.isNotEmpty()) {
+                    extractedPrices.forEach { price ->
+                        var inputName by remember { mutableStateOf("") }
+
+                        OutlinedTextField(
+                            value = inputName,
+                            onValueChange = { inputName = it },
+                            label = { Text("Enter name for $price") },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        )
+
+                        Button(
+                            onClick = {
+                                if (inputName.isNotBlank()) {
+                                    // Here, we can associate the name with the price (just a placeholder logic).
+                                    // You can store the result in a list or database.
+                                    // For now, let's just show a message.
+                                    Log.i("CameraMode", "Name '$inputName' associated with price '$price'")
+                                    inputName = "" // Clear input after saving
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Save Name")
+                        }
+
+                        Text(
+                            text = "$price",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    Text("No prices detected.")
+                }
+            }
         }
     } else {
-        Text("Camera permission not granted")
+        Text("Camera permission is required.")
     }
 }
+
+fun extractPrices(context: Context, imageUri: Uri, onPricesExtracted: (List<String>) -> Unit) {
+    val recognizer = TextRecognition.getClient(TextRecognizerOptions.Builder().build())
+    val inputImage = InputImage.fromFilePath(context, imageUri)
+
+    recognizer.process(inputImage)
+        .addOnSuccessListener { visionText ->
+            val prices = mutableListOf<String>()
+
+            // Extracting prices from the recognized text
+            for (block in visionText.textBlocks) {
+                val blockText = block.text
+                val lines = block.lines
+
+                for (line in lines) {
+                    val lineText = line.text
+                    val splitLine = lineText.split(" ").filter { it.isNotEmpty() }
+
+                    // Check if the last part of the line starts with "$" to identify price
+                    if (splitLine.isNotEmpty() && splitLine.last().startsWith("$")) {
+                        prices.add(splitLine.last())
+                    }
+                }
+            }
+
+            onPricesExtracted(prices)
+        }
+        .addOnFailureListener { e ->
+            Log.e("OCR", "Error during text extraction: ${e.message}", e)
+            onPricesExtracted(emptyList())
+        }
+}
+
 
 
 @Preview(showBackground = true)
