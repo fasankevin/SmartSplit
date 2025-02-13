@@ -26,15 +26,13 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="Authentication Completed">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
+    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="OCR IMPLEMENTED">
+      <change afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/ReceiptProcessingActivity.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/AndroidManifest.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/app/src/main/res/values/strings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/res/values/strings.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -158,6 +156,9 @@
       <recent name="C:\Users\nkemj\StudioProjects\2025-csc1049-kfasan-waggify\code\app" />
     </key>
     <key name="android.template.-1382268084">
+      <recent name="com.example.smartsplit" />
+    </key>
+    <key name="android.template.-860826336">
       <recent name="com.example.smartsplit" />
     </key>
   </component>
@@ -691,14 +692,23 @@
       <option name="project" value="LOCAL" />
       <updated>1738285843950</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="OCR IMPLEMENTED">
+      <option name="closed" value="true" />
+      <created>1739282153711</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1739282153711</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Very basic bill splitting functionality" />
     <MESSAGE value="Progressed into camera development." />
     <MESSAGE value="Authentication Completed" />
-    <option name="LAST_COMMIT_MESSAGE" value="Authentication Completed" />
+    <MESSAGE value="OCR IMPLEMENTED" />
+    <option name="LAST_COMMIT_MESSAGE" value="OCR IMPLEMENTED" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">

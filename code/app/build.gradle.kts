@@ -62,6 +62,8 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.constraintlayout:constraintlayout:2.2.0")
     implementation("com.google.android.material:material:1.12.0")
+    implementation("com.android.volley:volley:1.2.1")
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -101,7 +103,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("com.google.android.material:material:1.12.0")
-
+    implementation ("com.android.volley:volley:1.2.1")
+    implementation("androidx.compose.material:material-icons-extended:1.7.7")
     implementation("com.google.mlkit:text-recognition:16.0.0")
 }
 
