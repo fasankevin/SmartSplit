@@ -25,15 +25,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
 import com.example.smartsplit.ui.theme.SmartSplitTheme
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -45,25 +46,55 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
+            PlayIntegrityAppCheckProviderFactory.getInstance()
+        )
         if (FirebaseAuth.getInstance().currentUser == null) {
             startActivity(Intent(this, LoginActivity::class.java))
-            finish()
         }
     }
 
 
     private lateinit var cameraExecutor: ExecutorService
+    private lateinit var db: FirebaseFirestore
+
+    // check all users groups
+    val userGroupNames = mutableStateListOf<String>()
+    val userGroupIds = mutableStateListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        db = FirebaseFirestore.getInstance()
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         enableEdgeToEdge()
         setContent {
+            LaunchedEffect(Unit) {
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
+                if (userId != null) {
+                    db.collection("groups")
+                        .whereArrayContains("members", userId)
+                        .get()
+                        .addOnSuccessListener { documents ->
+                            if (!documents.isEmpty) {
+                                userGroupNames.clear()
+                                userGroupIds.clear()
+                                for (document in documents) {
+                                    document.getString("name")?.let { userGroupNames.add(it) }
+                                    userGroupIds.add(document.id)
+                                }
+                                Log.d("Firestore", "Data fetched and updated")
+                            }
+                        }
+                        .addOnFailureListener { exception ->
+                            Log.e("Firestore", "Error fetching data: ${exception.message}")
+                        }
+                }
+            }
             SmartSplitTheme {
+                val context = LocalContext.current
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ChatAndBillSplitterApp(modifier = Modifier.padding(innerPadding))
+                    ChatAndBillSplitterApp(context = context, userGroupNames, userGroupIds, modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -76,12 +107,24 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ChatAndBillSplitterApp(modifier: Modifier = Modifier) {
+fun ChatAndBillSplitterApp(context: Context, userGroupNames: List<String>, userGroupIds: List<String>, modifier: Modifier = Modifier) {
     var chatMessages by remember { mutableStateOf(listOf<String>()) }
     var currentMessage by remember { mutableStateOf("") }
 
     // State for toggling between chat, bill-splitting, and camera
     var mode by remember { mutableStateOf("Chat") }
+
+    var selectedGroup by remember { mutableStateOf<String?>(null) }
+
+
+    var showGroupDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(userGroupNames) {
+        if (userGroupNames.isNotEmpty()) {
+            selectedGroup = userGroupNames[0]
+        }
+    }
+
 
     Column(
         modifier = modifier
@@ -89,6 +132,52 @@ fun ChatAndBillSplitterApp(modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+
+        Button(onClick = { showGroupDialog = true }) {
+            Text("Current Group: ${selectedGroup ?: "Select Group"}")
+        }
+
+        // Group Selection Dialog
+        if (showGroupDialog) {
+            AlertDialog(
+                onDismissRequest = { showGroupDialog = false },
+                title = { Text("Select Group") },
+                text = {
+                    Column {
+                        userGroupNames.forEach { name ->
+                            Button(
+                                onClick = {
+                                    selectedGroup = name
+                                    showGroupDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(name)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                // Redirect to CreateGroupActivity when clicking "Create New Group"
+                                val intent = Intent(context, CreateGroupActivity::class.java)
+                                context.startActivity(intent)
+
+                                showGroupDialog = false // Close dialog
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Create New Group")
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showGroupDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
         // Chat Area
         Column(
             modifier = Modifier
@@ -309,7 +398,9 @@ fun CameraMode(modifier: Modifier = Modifier) {
             }
 
             // Display Extracted Prices
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Column(modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)) {
                 if (extractedPrices.isNotEmpty()) {
                     extractedPrices.forEach { price ->
                         var inputName by remember { mutableStateOf("") }
@@ -318,7 +409,9 @@ fun CameraMode(modifier: Modifier = Modifier) {
                             value = inputName,
                             onValueChange = { inputName = it },
                             label = { Text("Enter name for $price") },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
                         )
 
                         Button(
@@ -382,16 +475,5 @@ fun extractPrices(context: Context, imageUri: Uri, onPricesExtracted: (List<Stri
             onPricesExtracted(emptyList())
         }
 }
-
-
-
-@Preview(showBackground = true)
-@Composable
-fun ChatAndBillSplitterPreview() {
-    SmartSplitTheme {
-        ChatAndBillSplitterApp()
-    }
-}
-
 
 

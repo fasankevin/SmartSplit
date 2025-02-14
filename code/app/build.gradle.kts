@@ -66,6 +66,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
     implementation("com.google.firebase:firebase-firestore-ktx:25.1.2")
     implementation("androidx.activity:activity:1.10.0")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity:18.0.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -95,6 +96,7 @@ dependencies {
 
     implementation("com.google.firebase:firebase-database-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx:24.11.0")
     implementation("com.google.firebase:firebase-auth:23.1.0")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("androidx.credentials:credentials:1.5.0-rc01")
@@ -104,9 +106,11 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("com.google.android.material:material:1.12.0")
-
+    implementation("com.google.firebase:firebase-dynamic-links-ktx")
     implementation("androidx.room:room-runtime:2.5.0")
+
     kapt("androidx.room:room-compiler:2.5.0")
+
 }
 
 

@@ -1,7 +1,9 @@
 package com.example.smartsplit
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,24 +18,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.smartsplit.ui.theme.SmartSplitTheme
-import com.example.smartsplit.utils.UserSession
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class LoginActivity : ComponentActivity() {
 
     private lateinit var auth: FirebaseAuth
-    private lateinit var userSession: UserSession
+    private lateinit var db: FirebaseFirestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
-        userSession = UserSession(this)
         enableEdgeToEdge()
         setContent {
             SmartSplitTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    LoginScreen(auth, userSession, Modifier.padding(innerPadding))
+                    LoginScreen(auth, db, Modifier.padding(innerPadding))
                 }
             }
         }
@@ -41,11 +42,10 @@ class LoginActivity : ComponentActivity() {
 }
 
 @Composable
-fun LoginScreen(auth: FirebaseAuth, userSession: UserSession, modifier: Modifier = Modifier) {
+fun LoginScreen(auth: FirebaseAuth, db: FirebaseFirestore, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -84,12 +84,9 @@ fun LoginScreen(auth: FirebaseAuth, userSession: UserSession, modifier: Modifier
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
                             // check if user is part of a group
-                            if (userSession.isUserInGroup()) {
-                                // User is in a group, navigate to MainActivity
-                                context.startActivity(Intent(context, MainActivity::class.java))
-                            } else {
-                                // User is not in a group, redirect to CreateGroupActivity
-                                context.startActivity(Intent(context, CreateGroupActivity::class.java))
+                            val userId = auth.currentUser?.uid
+                            if (userId != null) {
+                                checkUserGroups(db, userId, context)
                             }
                             Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
                         } else {
@@ -112,3 +109,22 @@ fun LoginScreen(auth: FirebaseAuth, userSession: UserSession, modifier: Modifier
     }
 }
 
+fun checkUserGroups(db: FirebaseFirestore, userId: String, context: Context) {
+    db.collection("groups")
+        .whereArrayContains("members", userId)  // Query all groups where the user is a member
+        .get()
+        .addOnSuccessListener { documents ->
+            if (documents.isEmpty) {
+                // User is NOT in any group → Redirect to CreateGroupActivity
+                context.startActivity(Intent(context, CreateGroupActivity::class.java))
+            } else {
+                // User is in one or more groups → Collect group names and IDs
+                context.startActivity(Intent(context, MainActivity::class.java))
+
+            }
+        }
+        .addOnFailureListener { exception ->
+            Toast.makeText(context, "Error checking groups: ${exception.message}", Toast.LENGTH_SHORT).show()
+            Log.e("FirebaseError", exception.toString())
+        }
+}
