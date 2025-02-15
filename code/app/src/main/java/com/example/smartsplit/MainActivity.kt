@@ -31,6 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
 import com.example.smartsplit.ui.theme.SmartSplitTheme
+import com.google.android.gms.auth.api.Auth
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.auth.FirebaseAuth
@@ -57,44 +58,19 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var db: FirebaseFirestore
-
-    // check all users groups
-    val userGroupNames = mutableStateListOf<String>()
-    val userGroupIds = mutableStateListOf<String>()
+    private lateinit var userId: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         db = FirebaseFirestore.getInstance()
+        userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         enableEdgeToEdge()
         setContent {
-            LaunchedEffect(Unit) {
-                val userId = FirebaseAuth.getInstance().currentUser?.uid
-                if (userId != null) {
-                    db.collection("groups")
-                        .whereArrayContains("members", userId)
-                        .get()
-                        .addOnSuccessListener { documents ->
-                            if (!documents.isEmpty) {
-                                userGroupNames.clear()
-                                userGroupIds.clear()
-                                for (document in documents) {
-                                    document.getString("name")?.let { userGroupNames.add(it) }
-                                    userGroupIds.add(document.id)
-                                }
-                                Log.d("Firestore", "Data fetched and updated")
-                            }
-                        }
-                        .addOnFailureListener { exception ->
-                            Log.e("Firestore", "Error fetching data: ${exception.message}")
-                        }
-                }
-            }
             SmartSplitTheme {
-                val context = LocalContext.current
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ChatAndBillSplitterApp(context = context, userGroupNames, userGroupIds, modifier = Modifier.padding(innerPadding))
+                    ChatAndBillSplitterApp(db, userId, modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -107,24 +83,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ChatAndBillSplitterApp(context: Context, userGroupNames: List<String>, userGroupIds: List<String>, modifier: Modifier = Modifier) {
+fun ChatAndBillSplitterApp(db: FirebaseFirestore, userId: String, modifier: Modifier = Modifier) {
     var chatMessages by remember { mutableStateOf(listOf<String>()) }
     var currentMessage by remember { mutableStateOf("") }
 
     // State for toggling between chat, bill-splitting, and camera
     var mode by remember { mutableStateOf("Chat") }
-
-    var selectedGroup by remember { mutableStateOf<String?>(null) }
-
-
-    var showGroupDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(userGroupNames) {
-        if (userGroupNames.isNotEmpty()) {
-            selectedGroup = userGroupNames[0]
-        }
-    }
-
 
     Column(
         modifier = modifier
@@ -133,50 +97,7 @@ fun ChatAndBillSplitterApp(context: Context, userGroupNames: List<String>, userG
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
-        Button(onClick = { showGroupDialog = true }) {
-            Text("Current Group: ${selectedGroup ?: "Select Group"}")
-        }
-
-        // Group Selection Dialog
-        if (showGroupDialog) {
-            AlertDialog(
-                onDismissRequest = { showGroupDialog = false },
-                title = { Text("Select Group") },
-                text = {
-                    Column {
-                        userGroupNames.forEach { name ->
-                            Button(
-                                onClick = {
-                                    selectedGroup = name
-                                    showGroupDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(name)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                // Redirect to CreateGroupActivity when clicking "Create New Group"
-                                val intent = Intent(context, CreateGroupActivity::class.java)
-                                context.startActivity(intent)
-
-                                showGroupDialog = false // Close dialog
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Create New Group")
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showGroupDialog = false }) {
-                        Text("Close")
-                    }
-                }
-            )
-        }
+        GroupSelectionUI(db, userId)
 
         // Chat Area
         Column(
@@ -302,7 +223,7 @@ fun BillSplitterMode(onCalculationComplete: (String) -> Unit) {
 }
 
 @Composable
-fun CameraMode(modifier: Modifier = Modifier) {
+fun CameraMode() {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
@@ -430,7 +351,7 @@ fun CameraMode(modifier: Modifier = Modifier) {
                         }
 
                         Text(
-                            text = "$price",
+                            text = "price",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -454,7 +375,6 @@ fun extractPrices(context: Context, imageUri: Uri, onPricesExtracted: (List<Stri
 
             // Extracting prices from the recognized text
             for (block in visionText.textBlocks) {
-                val blockText = block.text
                 val lines = block.lines
 
                 for (line in lines) {
@@ -476,4 +396,83 @@ fun extractPrices(context: Context, imageUri: Uri, onPricesExtracted: (List<Stri
         }
 }
 
+@Composable
+fun GroupSelectionUI(db: FirebaseFirestore, userId: String) {
+    var showGroupDialog by remember { mutableStateOf(false) }
+    var selectedGroup by remember { mutableStateOf<String?>(null) }
+    var userGroupNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) } // To track the loading state
+    val context = LocalContext.current
+
+    // Fetch groups from Firestore
+    LaunchedEffect(userId) {
+        db.collection("groups")
+            .whereArrayContains("members", userId)
+            .get()
+            .addOnSuccessListener { documents ->
+                userGroupNames = documents.map { it.getString("name") ?: "Unnamed Group" }
+                if (userGroupNames.isNotEmpty()) {
+                    selectedGroup = userGroupNames[0] // Set selected group to the first one
+                }
+                isLoading = false // Hide loading indicator after fetch
+            }
+            .addOnFailureListener { exception ->
+                Log.e("FirebaseError", "Error loading groups: ${exception.message}")
+                isLoading = false // Hide loading indicator if fetch fails
+            }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        // Button to show the group selection dialog
+        Button(onClick = { showGroupDialog = true }) {
+            Text("Current Group: ${selectedGroup ?: "Loading..."}")
+        }
+
+        // Show loading indicator while fetching groups
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp)) // Display loading spinner
+        }
+
+        // Show group selection dialog when 'Select Group' button is clicked
+        if (showGroupDialog) {
+            AlertDialog(
+                onDismissRequest = { showGroupDialog = false },
+                title = { Text("Select Group") },
+                text = {
+                    Column {
+                        userGroupNames.forEach { name ->
+                            Button(
+                                onClick = {
+                                    selectedGroup = name
+                                    showGroupDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(name)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                val intent = Intent(context, CreateGroupActivity::class.java)
+                                context.startActivity(intent)
+                                showGroupDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Create New Group")
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showGroupDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+    }
+}
 
