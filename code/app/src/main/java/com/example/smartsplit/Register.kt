@@ -2,6 +2,7 @@ package com.example.smartsplit
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,21 +18,27 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.smartsplit.ui.theme.SmartSplitTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 
 class RegisterActivity : ComponentActivity() {
 
+    private lateinit var groupId: String
+    private lateinit var inviterId: String
     private lateinit var auth: FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        groupId = intent.getStringExtra("groupId").toString()
+        inviterId = intent.getStringExtra("inviterId").toString()
         auth = FirebaseAuth.getInstance()
 
         enableEdgeToEdge()
         setContent {
             SmartSplitTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    RegisterScreen(auth, Modifier.padding(innerPadding))
+                    RegisterScreen(auth, groupId, Modifier.padding(innerPadding))
                 }
             }
         }
@@ -39,8 +46,8 @@ class RegisterActivity : ComponentActivity() {
 }
 
 @Composable
-fun RegisterScreen(auth: FirebaseAuth, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
+fun RegisterScreen(auth: FirebaseAuth, groupId: String, modifier: Modifier = Modifier) {
+    var context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -81,8 +88,14 @@ fun RegisterScreen(auth: FirebaseAuth, modifier: Modifier = Modifier) {
                 auth.createUserWithEmailAndPassword(email, password)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
+                            val userId = FirebaseAuth.getInstance().currentUser?.uid
+                            if (userId != null && groupId != null) {
+                                // Add the user to the group
+                                addUserToGroup(groupId, userId)
+                            }
                             Toast.makeText(context, "Registration Successful", Toast.LENGTH_SHORT).show()
-                            context.startActivity(Intent(context, LoginActivity::class.java))
+                            context.startActivity(Intent(context, MainActivity::class.java))
+
                         } else {
                             Toast.makeText(context, "Registration Failed: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -103,4 +116,14 @@ fun RegisterScreen(auth: FirebaseAuth, modifier: Modifier = Modifier) {
     }
 }
 
+fun addUserToGroup(groupId: String, userId: String) {
+    val groupRef = FirebaseFirestore.getInstance().collection("groups").document(groupId)
 
+    groupRef.update("members", FieldValue.arrayUnion(userId))
+        .addOnSuccessListener {
+            Log.d("Firestore", "User added to group successfully")
+        }
+        .addOnFailureListener { e ->
+            Log.e("Firestore", "Error adding user to group", e)
+        }
+}

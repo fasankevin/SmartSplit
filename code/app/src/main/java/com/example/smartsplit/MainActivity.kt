@@ -1,9 +1,16 @@
 package com.example.smartsplit
 
+import android.content.Context
+import com.google.firebase.dynamiclinks.ktx.androidParameters
+import com.google.firebase.dynamiclinks.ktx.dynamicLinks
+import com.google.firebase.dynamiclinks.ktx.shortLinkAsync
+import com.google.firebase.ktx.Firebase
 import androidx.compose.foundation.rememberScrollState
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -27,22 +34,31 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ReceiptLong
+import com.example.smartsplit.models.Group
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
 
     private var itemizedDetails by mutableStateOf(listOf<String>())
     private var totalAmount by mutableStateOf(0.0)
     private var selectedScreen by mutableStateOf("Chat")
+    private lateinit var groupId: String
+    private lateinit var inviterId: String
+
     override fun onStart() {
         super.onStart()
         FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
             PlayIntegrityAppCheckProviderFactory.getInstance()
         )
         if (FirebaseAuth.getInstance().currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java))
+            val intent = Intent(this, LoginActivity::class.java).apply {
+                putExtra("groupId", groupId)
+                putExtra("inviterId", inviterId)
+            }
+            startActivity(intent)
             finish()
         }
     }
@@ -55,6 +71,36 @@ class MainActivity : ComponentActivity() {
 
         db = FirebaseFirestore.getInstance()
         userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+        // Handle Dynamic Links
+        Firebase.dynamicLinks
+            .getDynamicLink(intent)
+            .addOnSuccessListener { pendingDynamicLinkData ->
+                val deepLink = pendingDynamicLinkData?.link
+                if (deepLink != null) {
+                    val groupId = deepLink.getQueryParameter("groupId")
+                    val inviterId = deepLink.getQueryParameter("inviterId")
+
+                    if (groupId != null && inviterId != null) {
+                        // Check if the user is logged in
+                        val userId = FirebaseAuth.getInstance().currentUser
+                        if (userId != null) {
+                            // User is logged in, add them to the group
+                            addUserToGroup(groupId, userId.uid)
+                        } else {
+                            // User is not logged in, redirect to registration page
+                            val intent = Intent(this, RegisterActivity::class.java).apply {
+                                putExtra("groupId", groupId)
+                                putExtra("inviterId", inviterId)
+                            }
+                            startActivity(intent)
+                        }
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("DynamicLink", "Error handling Dynamic Link", e)
+            }
 
         enableEdgeToEdge()
         setContent {
@@ -118,7 +164,7 @@ fun MainScreen(
                 modifier = Modifier.padding(innerPadding), label = ""
             ) { screen ->
                 when (screen) {
-                    "Chat" -> ChatScreen(db, userId)
+                    "Chat" -> ChatScreen(context, db, userId)
                     "BillSplitter" -> BillSplitterScreen(
                         itemizedDetails = extractedPrices,
                         totalAmount = extractedTotal
@@ -157,17 +203,57 @@ fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
 }
 
 @Composable
-fun ChatScreen(db: FirebaseFirestore, userId: String) {
+fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
     var chatMessages by remember { mutableStateOf(listOf<String>()) }
     var currentMessage by remember { mutableStateOf("") }
+    var groupId by remember { mutableStateOf<String?>(null) }
+    var groupName by remember { mutableStateOf<String?>(null) }
+    var shouldGenerateLink by remember { mutableStateOf(false) } // State to trigger link generation
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Chat Mode", style = MaterialTheme.typography.headlineMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Chat Mode", style = MaterialTheme.typography.headlineMedium)
 
-        GroupSelectionUI(db, userId)
+            // Invite Friend Button
+            Button(
+                onClick = {
+                    if (groupId != null) {
+                        // Set the state to trigger link generation
+                        shouldGenerateLink = true
+                    } else {
+                        Toast.makeText(context, "Please select a group first", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier
+                    .width(170.dp)
+                    .padding(start = 8.dp)
+            ) {
+                Text("Invite Friend")
+            }
+        }
+        GroupSelectionUI(db,
+            userId,
+            onGroupSelected = { selectedGroupId, selectedGroupName ->
+                groupId = selectedGroupId // Update the selected group ID
+                groupName = selectedGroupName.toString()
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Generate the invitation link when shouldGenerateLink is true
+        if (shouldGenerateLink) {
+            LaunchedEffect(Unit) {
+                val invitationLink = generateInvitationLink(groupId!!, userId)
+                shareInvitationLink(context, invitationLink)
+                shouldGenerateLink = false // Reset the state
+            }
+        }
 
         Column(
             modifier = Modifier
@@ -176,7 +262,11 @@ fun ChatScreen(db: FirebaseFirestore, userId: String) {
                 .verticalScroll(rememberScrollState())
         ) {
             chatMessages.forEach { message ->
-                Text(text = message, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
             }
         }
 
@@ -252,11 +342,17 @@ fun BillSplitterScreen(itemizedDetails: List<String>, totalAmount: Double) {
 
 
 @Composable
-fun GroupSelectionUI(db: FirebaseFirestore, userId: String) {
+fun GroupSelectionUI(
+    db: FirebaseFirestore,
+    userId: String,
+    onGroupSelected: (String, String) -> Unit, // Callback for group ID and name
+    modifier: Modifier = Modifier // Add a modifier parameter
+) {
     var showGroupDialog by remember { mutableStateOf(false) }
-    var selectedGroup by remember { mutableStateOf<String?>(null) }
-    var userGroupNames by remember { mutableStateOf<List<String>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) } // To track the loading state
+    var selectedGroup by remember { mutableStateOf<Group?>(null) }
+    var selectedId by remember { mutableStateOf<String?>(null) } // State for selected group ID
+    var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
     // Fetch groups from Firestore
@@ -265,9 +361,16 @@ fun GroupSelectionUI(db: FirebaseFirestore, userId: String) {
             .whereArrayContains("members", userId)
             .get()
             .addOnSuccessListener { documents ->
-                userGroupNames = documents.map { it.getString("name") ?: "Unnamed Group" }
-                if (userGroupNames.isNotEmpty()) {
-                    selectedGroup = userGroupNames[0] // Set selected group to the first one
+                userGroups = documents.map { document ->
+                    Group(
+                        id = document.id, // Firestore document ID
+                        name = document.getString("name") ?: "Unnamed Group" // Group name
+                    )
+                }
+                if (userGroups.isNotEmpty()) {
+                    selectedGroup = userGroups[0] // Set selected group to the first one
+                    selectedId = userGroups[0].id // Set selected ID to the first group's ID
+                    onGroupSelected(userGroups[0].id, userGroups[0].name)
                 }
                 isLoading = false // Hide loading indicator after fetch
             }
@@ -277,10 +380,10 @@ fun GroupSelectionUI(db: FirebaseFirestore, userId: String) {
             }
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth()) { // Use the passed modifier
         // Button to show the group selection dialog
         Button(onClick = { showGroupDialog = true }) {
-            Text("Current Group: ${selectedGroup ?: "Loading..."}")
+            Text("Current Group: ${selectedGroup?.name ?: "Loading..."}")
         }
 
         // Show loading indicator while fetching groups
@@ -295,15 +398,16 @@ fun GroupSelectionUI(db: FirebaseFirestore, userId: String) {
                 title = { Text("Select Group") },
                 text = {
                     Column {
-                        userGroupNames.forEach { name ->
+                        userGroups.forEach { group ->
                             Button(
                                 onClick = {
-                                    selectedGroup = name
+                                    selectedGroup = group
+                                    onGroupSelected(group.id, group.name) // Pass group ID and name to the callback
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(name)
+                                Text(group.name)
                             }
                         }
 
@@ -331,3 +435,25 @@ fun GroupSelectionUI(db: FirebaseFirestore, userId: String) {
     }
 }
 
+suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
+    val dynamicLink = Firebase.dynamicLinks.shortLinkAsync {
+        link = Uri.parse("https://smartsplit.page.link/invite?groupId=$groupId&inviterId=$inviterId")
+        domainUriPrefix = "https://smartsplit.page.link"
+        androidParameters("com.example.smartsplit") {
+            minimumVersion = 1
+        }
+    }.await()
+
+    return dynamicLink.shortLink.toString()
+}
+
+fun shareInvitationLink(context: Context, invitationLink: String) {
+    val sendIntent = Intent().apply {
+        action = Intent.ACTION_SEND
+        putExtra(Intent.EXTRA_TEXT, "Join my group! Click the link: $invitationLink")
+        type = "text/plain"
+    }
+
+    val shareIntent = Intent.createChooser(sendIntent, "Share Invitation Link")
+    context.startActivity(shareIntent)
+}

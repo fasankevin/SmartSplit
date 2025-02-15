@@ -25,16 +25,22 @@ class LoginActivity : ComponentActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
+    private lateinit var groupId: String
+    private lateinit var inviterId: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        groupId = intent.getStringExtra("groupId").toString()
+        inviterId = intent.getStringExtra("inviterId").toString()
+
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
         enableEdgeToEdge()
         setContent {
             SmartSplitTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    LoginScreen(auth, db, Modifier.padding(innerPadding))
+                    LoginScreen(auth, groupId, db, Modifier.padding(innerPadding))
                 }
             }
         }
@@ -42,7 +48,7 @@ class LoginActivity : ComponentActivity() {
 }
 
 @Composable
-fun LoginScreen(auth: FirebaseAuth, db: FirebaseFirestore, modifier: Modifier = Modifier) {
+fun LoginScreen(auth: FirebaseAuth, groupId: String, db: FirebaseFirestore, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -84,7 +90,12 @@ fun LoginScreen(auth: FirebaseAuth, db: FirebaseFirestore, modifier: Modifier = 
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
                             // check if user is part of a group
+
                             val userId = auth.currentUser?.uid
+                            if (userId != null && groupId != null) {
+                                // Add the user to the group
+                                addUserToGroup(groupId, userId)
+                            }
                             if (userId != null) {
                                 checkUserGroups(db, userId, context)
                             }
