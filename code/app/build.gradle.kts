@@ -57,27 +57,31 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation(platform("androidx.compose:compose-bom:2024.04.01"))
+    implementation(platform("androidx.compose:compose-bom:2025.02.00"))
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.constraintlayout:constraintlayout:2.2.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.android.volley:volley:1.2.1")
     implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-common:19.1.0")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    implementation("com.google.firebase:firebase-firestore-ktx:25.1.2")
+    implementation("androidx.activity:activity:1.10.0")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity:18.0.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.04.01"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.02.00"))
+    androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    implementation("com.google.firebase:firebase-firestore:25.1.1")
-    implementation("androidx.compose.ui:ui:1.7.6")  // Modifier, Text, Button, etc.
+    implementation("androidx.compose.ui:ui:1.7.8")  // Modifier, Text, Button, etc.
     implementation("androidx.compose.material3:material3:1.3.1")  // Material components (e.g., Button, Text)
-    implementation("androidx.compose.ui:ui-tooling-preview:1.7.0") // For Preview
+    implementation("androidx.compose.ui:ui-tooling-preview:1.7.8") // For Preview
     implementation("androidx.activity:activity-compose:1.10.0") // Activity Compose integration
     val cameraxVersion = "1.5.0-alpha05"
 
@@ -87,14 +91,14 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraxVersion")
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
 
-    implementation(platform("com.google.firebase:firebase-bom:33.8.0"))
+    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
     implementation("com.google.firebase:firebase-analytics")
-    implementation("androidx.databinding:databinding-runtime:8.8.0")
+    implementation("androidx.databinding:databinding-runtime:8.8.1")
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     implementation("com.google.firebase:firebase-database-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
-    implementation("com.google.firebase:firebase-auth:23.1.0")
+    implementation("com.google.firebase:firebase-auth:23.2.0")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("androidx.credentials:credentials:1.5.0-rc01")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0-rc01")
@@ -104,8 +108,13 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("com.google.android.material:material:1.12.0")
     implementation ("com.android.volley:volley:1.2.1")
-    implementation("androidx.compose.material:material-icons-extended:1.7.7")
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.firebase:firebase-dynamic-links-ktx")
+    implementation("androidx.room:room-runtime:2.6.1")
+
+    kapt("androidx.room:room-compiler:2.6.1")
+
 }
 
 
