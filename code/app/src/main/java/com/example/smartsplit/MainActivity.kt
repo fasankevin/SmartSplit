@@ -31,14 +31,24 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material.icons.Icons
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.ui.graphics.Color
+import com.example.smartsplit.models.ChatMessage
 import com.example.smartsplit.models.Group
+import com.example.smartsplit.ui.theme.Purple80
+import com.example.smartsplit.ui.theme.PurpleGrey80
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.Timestamp
 
 class MainActivity : ComponentActivity() {
 
@@ -204,11 +214,50 @@ fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
 
 @Composable
 fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
-    var chatMessages by remember { mutableStateOf(listOf<String>()) }
+    var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var currentMessage by remember { mutableStateOf("") }
     var groupId by remember { mutableStateOf<String?>(null) }
     var groupName by remember { mutableStateOf<String?>(null) }
-    var shouldGenerateLink by remember { mutableStateOf(false) } // State to trigger link generation
+    var shouldGenerateLink by remember { mutableStateOf(false) }
+
+    // Create LazyListState for controlling scroll position
+    val listState = rememberLazyListState()
+
+    // Firestore listener for real-time message updates
+    DisposableEffect(groupId) {
+        val listenerRegistration = db.collection("messages")
+            .whereEqualTo("groupId", groupId)
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreError", "Error fetching messages", error)
+                    return@addSnapshotListener
+                }
+
+                val messages = snapshot?.documents?.mapNotNull { document ->
+                    ChatMessage(
+                        id = document.id,
+                        senderId = document.getString("senderId") ?: "",
+                        message = document.getString("message") ?: "",
+                        timestamp = document.getTimestamp("timestamp") ?: Timestamp.now(),
+                        groupId = document.getString("groupId") ?: ""
+                    )
+                } ?: emptyList()
+
+                chatMessages = messages
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
+
+    // Automatically scroll to the bottom when messages update
+    LaunchedEffect(chatMessages.size) {
+        if (chatMessages.isNotEmpty()) {
+            listState.animateScrollToItem(chatMessages.size - 1)
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -224,52 +273,52 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
             Button(
                 onClick = {
                     if (groupId != null) {
-                        // Set the state to trigger link generation
                         shouldGenerateLink = true
                     } else {
                         Toast.makeText(context, "Please select a group first", Toast.LENGTH_SHORT).show()
                     }
                 },
-                modifier = Modifier
-                    .width(170.dp)
-                    .padding(start = 8.dp)
+                modifier = Modifier.width(170.dp).padding(start = 8.dp)
             ) {
                 Text("Invite Friend")
             }
         }
-        GroupSelectionUI(db,
-            userId,
+
+        // Group Selection UI
+        GroupSelectionUI(
+            db = db,
+            userId = userId,
             onGroupSelected = { selectedGroupId, selectedGroupName ->
-                groupId = selectedGroupId // Update the selected group ID
+                groupId = selectedGroupId
                 groupName = selectedGroupName.toString()
             },
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Generate the invitation link when shouldGenerateLink is true
+        // Generate the invitation link
         if (shouldGenerateLink) {
             LaunchedEffect(Unit) {
                 val invitationLink = generateInvitationLink(groupId!!, userId)
                 shareInvitationLink(context, invitationLink)
-                shouldGenerateLink = false // Reset the state
+                shouldGenerateLink = false
             }
         }
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+        // Display chat messages using LazyColumn for better scroll control
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            chatMessages.forEach { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(vertical = 4.dp)
+            items(chatMessages) { message ->
+                MessageBubble(
+                    message = message,
+                    isCurrentUser = message.senderId == userId
                 )
             }
         }
 
+        // Message input field
         OutlinedTextField(
             value = currentMessage,
             onValueChange = { currentMessage = it },
@@ -277,17 +326,49 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Send message button
         Button(
             onClick = {
-                if (currentMessage.isNotBlank()) {
-                    chatMessages = chatMessages + currentMessage
-                    currentMessage = ""
+                if (currentMessage.isNotBlank() && groupId != null) {
+                    val message = hashMapOf(
+                        "senderId" to userId,
+                        "message" to currentMessage,
+                        "timestamp" to Timestamp.now(),
+                        "groupId" to groupId
+                    )
+
+                    val tempMessage = ChatMessage(
+                        id = "",  // Firestore will generate a real ID
+                        senderId = userId,
+                        message = currentMessage,
+                        timestamp = Timestamp.now(),
+                        groupId = groupId!!
+                    )
+
+                    // add the message to UI before Firestore updates
+                    chatMessages = chatMessages + tempMessage
+
+                    db.collection("messages")
+                        .add(message)
+                        .addOnSuccessListener { documentReference ->
+                            // Optional: Update message ID if needed
+                            chatMessages = chatMessages.map {
+                                if (it.id.isEmpty()) it.copy(id = documentReference.id) else it
+                            }
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e("FirestoreError", "Error sending message", e)
+                        }
+
+                    currentMessage = "" // Clear input field
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Send")
         }
+
+
     }
 }
 
@@ -456,4 +537,37 @@ fun shareInvitationLink(context: Context, invitationLink: String) {
 
     val shareIntent = Intent.createChooser(sendIntent, "Share Invitation Link")
     context.startActivity(shareIntent)
+}
+
+@Composable
+fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
+    val currentUserColor = Color(0xFF2A4174) // Dark blue for the current user
+    val otherUserColor = Color.LightGray // Light grey for other users
+
+    val bubbleColor = if (isCurrentUser) {
+        currentUserColor
+    } else {
+        otherUserColor
+    }
+
+    val textColor = Color.White // White text for both current user and other users
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Surface(
+            color = bubbleColor,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(
+                text = message.message,
+                color = textColor,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+    }
 }

@@ -27,11 +27,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="Progressed into camera development.">
-      <change afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/models/Group.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/models/ChatMessage.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -143,7 +141,7 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "com.google.services.firebase.aqiPopupShown": "true",
-    "git-widget-placeholder": "Links",
+    "git-widget-placeholder": "Chat",
     "ignore.virus.scanning.warn.message": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "C:/Users/nkemj/StudioProjects/2025-csc1049-kfasan-waggify/code/app",
