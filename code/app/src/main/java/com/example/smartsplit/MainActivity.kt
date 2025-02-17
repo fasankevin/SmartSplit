@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.ui.graphics.Color
 import com.example.smartsplit.models.ChatMessage
 import com.example.smartsplit.models.Group
+import com.example.smartsplit.utils.joinGroup
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
@@ -580,6 +581,7 @@ fun GroupSelectionUI(
     var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var showMembersDialog by remember { mutableStateOf(false) }
     var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
+    var groupIdToJoin by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
@@ -694,6 +696,36 @@ fun GroupSelectionUI(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Create New Group")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = groupIdToJoin,
+                            onValueChange = { groupIdToJoin = it },
+                            label = { Text("Enter Group ID to Join") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                if (groupIdToJoin.isNotBlank()) {
+                                    joinGroup(db, groupIdToJoin, userId) { success ->
+                                        if (success) {
+                                            Toast.makeText(context, "Successfully joined group!", Toast.LENGTH_SHORT).show()
+                                            showGroupDialog = false
+                                        } else {
+                                            Toast.makeText(context, "Failed to join group. Check the group ID.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Please enter a group ID.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Join Group")
                         }
                     }
                 },
