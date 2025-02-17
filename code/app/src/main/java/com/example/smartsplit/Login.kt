@@ -94,7 +94,7 @@ fun LoginScreen(auth: FirebaseAuth, groupId: String, db: FirebaseFirestore, modi
                             val userId = auth.currentUser?.uid
                             if (userId != null && groupId != null) {
                                 // Add the user to the group
-                                addUserToGroup(groupId, userId)
+                                addUserToGroup(db, groupId, userId)
                             }
                             if (userId != null) {
                                 checkUserGroups(db, userId, context)

@@ -49,6 +49,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.Timestamp
+import com.example.smartsplit.utils.joinGroup
+import com.google.android.gms.tasks.Tasks
 
 class MainActivity : ComponentActivity() {
 
@@ -96,7 +98,7 @@ class MainActivity : ComponentActivity() {
                         val userId = FirebaseAuth.getInstance().currentUser
                         if (userId != null) {
                             // User is logged in, add them to the group
-                            addUserToGroup(groupId, userId.uid)
+                            addUserToGroup(db, groupId, userId.uid)
                         } else {
                             // User is not logged in, redirect to registration page
                             val intent = Intent(this, RegisterActivity::class.java).apply {
@@ -299,7 +301,7 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
         if (shouldGenerateLink) {
             LaunchedEffect(Unit) {
                 val invitationLink = generateInvitationLink(groupId!!, userId)
-                shareInvitationLink(context, invitationLink)
+                shareInvitationLink(context, invitationLink, groupId!!)
                 shouldGenerateLink = false
             }
         }
@@ -434,6 +436,9 @@ fun GroupSelectionUI(
     var selectedId by remember { mutableStateOf<String?>(null) } // State for selected group ID
     var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var groupIdToJoin by remember { mutableStateOf("") } // State for group ID input
+    var showMembersDialog by remember { mutableStateOf(false) }
+    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
     val context = LocalContext.current
 
     // Fetch groups from Firestore
@@ -461,18 +466,59 @@ fun GroupSelectionUI(
             }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) { // Use the passed modifier
-        // Button to show the group selection dialog
-        Button(onClick = { showGroupDialog = true }) {
-            Text("Current Group: ${selectedGroup?.name ?: "Loading..."}")
+    // Fetch Group Members and Get Usernames
+    fun fetchGroupMembers() {
+        if (selectedId == null) return
+
+        db.collection("groups").document(selectedId!!)
+            .get()
+            .addOnSuccessListener { document ->
+                val memberIds = document.get("members") as? List<String> ?: emptyList()
+
+                val namesList = mutableListOf<String>()
+                val tasks = memberIds.map { memberId ->
+                    db.collection("users").document(memberId).get()
+                        .addOnSuccessListener { userDoc ->
+                            val name = userDoc.getString("username") ?: "Unknown"
+                            namesList.add(name)
+                        }
+                }
+
+                // Ensure all tasks complete before updating state
+                Tasks.whenAllComplete(tasks).addOnSuccessListener {
+                    groupMembers = namesList
+                    showMembersDialog = true
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("FirestoreError", "Error fetching group members", e)
+            }
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Button to select group
+            Button(onClick = { showGroupDialog = true }) {
+                Text("Current Group: ${selectedGroup?.name ?: "Loading..."}")
+            }
+
+            // View Group Members Button
+            Button(
+                onClick = { fetchGroupMembers() },
+                enabled = selectedId != null
+            ) {
+                Text("View Group Members")
+            }
         }
 
-        // Show loading indicator while fetching groups
         if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp)) // Display loading spinner
+            CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
         }
 
-        // Show group selection dialog when 'Select Group' button is clicked
+        // Group Selection Dialog
         if (showGroupDialog) {
             AlertDialog(
                 onDismissRequest = { showGroupDialog = false },
@@ -483,7 +529,8 @@ fun GroupSelectionUI(
                             Button(
                                 onClick = {
                                     selectedGroup = group
-                                    onGroupSelected(group.id, group.name) // Pass group ID and name to the callback
+                                    selectedId = group.id
+                                    onGroupSelected(group.id, group.name)
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
@@ -504,6 +551,37 @@ fun GroupSelectionUI(
                         ) {
                             Text("Create New Group")
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = groupIdToJoin,
+                            onValueChange = { groupIdToJoin = it },
+                            label = { Text("Enter Group ID to Join") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                if (groupIdToJoin.isNotBlank()) {
+                                    joinGroup(db, groupIdToJoin, userId) { success ->
+                                        if (success) {
+                                            Toast.makeText(context, "Successfully joined group!", Toast.LENGTH_SHORT).show()
+                                            showGroupDialog = false
+                                        } else {
+                                            Toast.makeText(context, "Failed to join group. Check the group ID.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Please enter a group ID.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Join Group")
+                        }
                     }
                 },
                 confirmButton = {
@@ -513,8 +591,29 @@ fun GroupSelectionUI(
                 }
             )
         }
+
+        // Group Members Dialog
+        if (showMembersDialog) {
+            AlertDialog(
+                onDismissRequest = { showMembersDialog = false },
+                title = { Text("Group Members") },
+                text = {
+                    Column {
+                        groupMembers.forEach { name ->
+                            Text(name)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showMembersDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
     }
 }
+
 
 suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
     val dynamicLink = Firebase.dynamicLinks.shortLinkAsync {
@@ -528,10 +627,10 @@ suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
     return dynamicLink.shortLink.toString()
 }
 
-fun shareInvitationLink(context: Context, invitationLink: String) {
+fun shareInvitationLink(context: Context, invitationLink: String, groupId: String) {
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_TEXT, "Join my group! Click the link: $invitationLink")
+        putExtra(Intent.EXTRA_TEXT, "Join my group! Click the link: $invitationLink or enter the group ID: $groupId")
         type = "text/plain"
     }
 
