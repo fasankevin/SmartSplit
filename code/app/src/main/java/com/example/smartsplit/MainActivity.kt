@@ -11,8 +11,10 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -137,16 +139,31 @@ fun MainScreen(
     extractedTotal: Double
 ) {
     var selectedScreen by remember { mutableStateOf("Chat") }
-    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedGroupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedGroupId by remember { mutableStateOf("") }
     var selectedGroupName by remember { mutableStateOf("") }
     val context = LocalContext.current
 
     // Callback to handle group selection and pass group members
-    val onGroupSelected: (String, String, List<String>) -> Unit = { groupId, groupName, members ->
+    val onGroupSelected: (String, String, List<String>) -> Unit = { groupId, groupName, groupMembers ->
         selectedGroupId = groupId
         selectedGroupName = groupName
-        groupMembers = members
+        selectedGroupMembers = groupMembers
+    }
+    // Launcher for ReceiptProcessingActivity
+    val resultLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        // Reset selectedScreen to "Chat" when returning from ReceiptProcessingActivity
+        selectedScreen = "Chat"
+    }
+
+    // Start ReceiptProcessingActivity when selectedScreen is "Camera"
+    LaunchedEffect(selectedScreen) {
+        if (selectedScreen == "Camera") {
+            val intent = Intent(context, ReceiptProcessingActivity::class.java)
+            resultLauncher.launch(intent)
+        }
     }
 
     SmartSplitTheme {
@@ -166,26 +183,26 @@ fun MainScreen(
                         context = context,
                         db = db,
                         userId = userId,
-                        onGroupSelected = onGroupSelected // Pass the callback here
+                        selectedGroupId = selectedGroupId,      // Pass selected group ID
+                        selectedGroupName = selectedGroupName,  // Pass selected group Name
+                        selectedGroupMembers = selectedGroupMembers,
+                        onGroupSelected = onGroupSelected
                     )
                     "BillSplitter" -> {
                         BillSplitterScreen(
                             itemizedDetails = extractedPrices,
                             totalAmount = extractedTotal,
-                            groupMembers = groupMembers // Pass group members here
+                            groupMembers = selectedGroupMembers
                         )
                     }
                     "Camera" -> {
-                        val intent = Intent(context, ReceiptProcessingActivity::class.java)
-                        context.startActivity(intent)
+                        // Do nothing here; the LaunchedEffect above handles starting the activity
                     }
                 }
             }
         }
     }
 }
-
-
 
 @Composable
 fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
@@ -212,21 +229,26 @@ fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
 }
 
 @Composable
-fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, onGroupSelected: (String, String, List<String>) -> Unit // Receive the callback here
+fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, selectedGroupId: String,      // Receive selected group ID
+               selectedGroupName: String,    // Receive selected group name
+               selectedGroupMembers: List<String>,
+               onGroupSelected: (String, String, List<String>) -> Unit // Receive the callback here
 ) {
     var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var currentMessage by remember { mutableStateOf("") }
-    var groupId by remember { mutableStateOf<String?>(null) }
+    var groupId by remember { mutableStateOf<String?>(selectedGroupId) }
     var groupName by remember { mutableStateOf<String?>(null) }
+    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
     var shouldGenerateLink by remember { mutableStateOf(false) }
+
 
     // Create LazyListState for controlling scroll position
     val listState = rememberLazyListState()
 
     // Firestore listener for real-time message updates
-    DisposableEffect(groupId) {
+    DisposableEffect(selectedGroupId) {
         val listenerRegistration = db.collection("messages")
-            .whereEqualTo("groupId", groupId)
+            .whereEqualTo("groupId", selectedGroupId)
             .orderBy("timestamp", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -288,7 +310,12 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, onGroupS
         GroupSelectionUI(
             db = db,
             userId = userId,
-            onGroupSelected = onGroupSelected,
+            onGroupSelected = { id, name, members ->
+                groupId = id  // Update groupId when a new group is selected
+                groupName = name  // Update groupName when a new group is selected
+                groupMembers = members // Update groupMembers when a new group is selected
+                onGroupSelected(id, name, members)  // Pass to the callback
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -551,7 +578,10 @@ fun GroupSelectionUI(
     var selectedGroup by remember { mutableStateOf<Group?>(null) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
+    var showMembersDialog by remember { mutableStateOf(false) }
+    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     // Function to fetch group members and call the onGroupSelected callback
     fun fetchGroupMembers(groupId: String, db: FirebaseFirestore, onGroupSelected: (String, String, List<String>) -> Unit) {
@@ -572,7 +602,10 @@ fun GroupSelectionUI(
                 // Ensure all tasks complete before calling onGroupSelected
                 Tasks.whenAllComplete(tasks).addOnSuccessListener {
                     // Pass groupId, groupName, and members to the parent composable
-                    onGroupSelected(groupId, selectedGroup?.name ?: "Unnamed Group", namesList)
+                    groupMembers = namesList
+                    selectedGroup?.let { it1 -> onGroupSelected(it1.id, selectedGroup?.name ?: "Unnamed Group", namesList) }
+                    Log.d("Firestore", "Fetched Members: $namesList for Group: ${selectedGroup?.name}")
+
                 }
             }
             .addOnFailureListener {
@@ -617,8 +650,8 @@ fun GroupSelectionUI(
             }
 
             Button(
-                onClick = { /* Handle Group Members viewing */ },
-                enabled = selectedId != null
+                onClick = { showMembersDialog = true },
+                enabled = groupMembers.isNotEmpty() // Only enable if there are members to display
             ) {
                 Text("View Group Members")
             }
@@ -639,15 +672,28 @@ fun GroupSelectionUI(
                             Button(
                                 onClick = {
                                     selectedGroup = group
-                                    selectedId = group.id
-                                    // Call onGroupSelected when a group is selected
-                                    fetchGroupMembers(group.id, db, onGroupSelected)
+                                    onGroupSelected(group.id, group.name, groupMembers) // Pass group ID and name to the callback
+                                    groupMembers = emptyList() // Reset group members when a new group is selected
+                                    fetchGroupMembers(group.id, db, onGroupSelected) // Fetch members for the new group
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(group.name)
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                val intent = Intent(context, CreateGroupActivity::class.java)
+                                context.startActivity(intent)
+                                showGroupDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Create New Group")
                         }
                     }
                 },
@@ -658,11 +704,28 @@ fun GroupSelectionUI(
                 }
             )
         }
+
+        // Group Members Dialog
+        if (showMembersDialog) {
+            AlertDialog(
+                onDismissRequest = { showMembersDialog = false },
+                title = { Text("Group Members") },
+                text = {
+                    Column {
+                        groupMembers.forEach { name ->
+                            Text(name)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showMembersDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
     }
 }
-
-
-
 
 suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
     val dynamicLink = Firebase.dynamicLinks.shortLinkAsync {
