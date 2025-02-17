@@ -5,32 +5,27 @@ import com.google.firebase.dynamiclinks.ktx.androidParameters
 import com.google.firebase.dynamiclinks.ktx.dynamicLinks
 import com.google.firebase.dynamiclinks.ktx.shortLinkAsync
 import com.google.firebase.ktx.Firebase
-import androidx.compose.foundation.rememberScrollState
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.smartsplit.ui.theme.SmartSplitTheme
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material.icons.Icons
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -41,15 +36,12 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.ui.graphics.Color
 import com.example.smartsplit.models.ChatMessage
 import com.example.smartsplit.models.Group
-import com.example.smartsplit.ui.theme.Purple80
-import com.example.smartsplit.ui.theme.PurpleGrey80
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.Timestamp
-import com.example.smartsplit.utils.joinGroup
 import com.google.android.gms.tasks.Tasks
 
 class MainActivity : ComponentActivity() {
@@ -145,22 +137,16 @@ fun MainScreen(
     extractedTotal: Double
 ) {
     var selectedScreen by remember { mutableStateOf("Chat") }
+    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedGroupId by remember { mutableStateOf("") }
+    var selectedGroupName by remember { mutableStateOf("") }
     val context = LocalContext.current
 
-    // Launcher for ReceiptProcessingActivity
-    val resultLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { _ ->
-        // Reset selectedScreen to "Chat" when returning from ReceiptProcessingActivity
-        selectedScreen = "Chat"
-    }
-
-    // Start ReceiptProcessingActivity when selectedScreen is "Camera"
-    LaunchedEffect(selectedScreen) {
-        if (selectedScreen == "Camera") {
-            val intent = Intent(context, ReceiptProcessingActivity::class.java)
-            resultLauncher.launch(intent)
-        }
+    // Callback to handle group selection and pass group members
+    val onGroupSelected: (String, String, List<String>) -> Unit = { groupId, groupName, members ->
+        selectedGroupId = groupId
+        selectedGroupName = groupName
+        groupMembers = members
     }
 
     SmartSplitTheme {
@@ -176,19 +162,30 @@ fun MainScreen(
                 modifier = Modifier.padding(innerPadding), label = ""
             ) { screen ->
                 when (screen) {
-                    "Chat" -> ChatScreen(context, db, userId)
-                    "BillSplitter" -> BillSplitterScreen(
-                        itemizedDetails = extractedPrices,
-                        totalAmount = extractedTotal
+                    "Chat" -> ChatScreen(
+                        context = context,
+                        db = db,
+                        userId = userId,
+                        onGroupSelected = onGroupSelected // Pass the callback here
                     )
+                    "BillSplitter" -> {
+                        BillSplitterScreen(
+                            itemizedDetails = extractedPrices,
+                            totalAmount = extractedTotal,
+                            groupMembers = groupMembers // Pass group members here
+                        )
+                    }
                     "Camera" -> {
-                        // Do nothing here; the LaunchedEffect above handles starting the activity
+                        val intent = Intent(context, ReceiptProcessingActivity::class.java)
+                        context.startActivity(intent)
                     }
                 }
             }
         }
     }
 }
+
+
 
 @Composable
 fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
@@ -215,7 +212,8 @@ fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
 }
 
 @Composable
-fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
+fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, onGroupSelected: (String, String, List<String>) -> Unit // Receive the callback here
+) {
     var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var currentMessage by remember { mutableStateOf("") }
     var groupId by remember { mutableStateOf<String?>(null) }
@@ -290,10 +288,7 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
         GroupSelectionUI(
             db = db,
             userId = userId,
-            onGroupSelected = { selectedGroupId, selectedGroupName ->
-                groupId = selectedGroupId
-                groupName = selectedGroupName.toString()
-            },
+            onGroupSelected = onGroupSelected,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -375,17 +370,37 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String) {
 }
 
 @Composable
-fun BillSplitterScreen(itemizedDetails: List<String>, totalAmount: Double) {
-    var splitAmount by remember { mutableStateOf(0.0) }
+fun BillSplitterScreen(
+    itemizedDetails: List<String>,
+    totalAmount: Double,
+    groupMembers: List<String>
+) {
+    var itemAssignments by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    var dialogItem by remember { mutableStateOf<String?>(null) }
+    var selectedMembersMap by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    val amountsAssigned = remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+    // Extract cost from each item string (format "item: $cost")
+    val itemCosts = remember(itemizedDetails) {
+        itemizedDetails.associate { item ->
+            val parts = item.split(":")
+            val costString = parts.getOrNull(1)?.trim()?.removePrefix("$")?.toDoubleOrNull() ?: 0.0
+            item to costString
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Bill Splitter", style = MaterialTheme.typography.headlineMedium)
+        item {
+            Text("Bill Splitter", style = MaterialTheme.typography.headlineMedium)
+        }
 
-        itemizedDetails.forEach { item ->
-            var splitBy by remember { mutableStateOf("1") }
+        items(itemizedDetails) { item ->
+            val selectedMembers = selectedMembersMap[item] ?: emptyList()
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -399,78 +414,148 @@ fun BillSplitterScreen(itemizedDetails: List<String>, totalAmount: Double) {
                 ) {
                     Text(item, modifier = Modifier.weight(1f))
 
-                    OutlinedTextField(
-                        value = splitBy,
-                        onValueChange = { splitBy = it },
-                        label = { Text("Split by") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.width(80.dp)
-                    )
+                    Button(
+                        onClick = { dialogItem = item },
+                        modifier = Modifier.width(120.dp)
+                    ) {
+                        Text(if (selectedMembers.isEmpty()) "Assign to" else selectedMembers.joinToString(", "))
+                    }
                 }
             }
         }
 
-        Button(
-            onClick = {
-                splitAmount = totalAmount / itemizedDetails.size // Example calculation
-                val resultMessage = "Each person owes: $%.2f".format(splitAmount)
-                // Display or use this result message (for example, in chat or alert)
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Calculate")
+        dialogItem?.let { currentItem ->
+            item {
+                var tempSelectedMembers by remember(currentItem) {
+                    mutableStateOf(selectedMembersMap[currentItem] ?: emptyList())
+                }
+
+                AlertDialog(
+                    onDismissRequest = { dialogItem = null },
+                    title = { Text("Select Members for $currentItem") },
+                    text = {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        tempSelectedMembers = if (tempSelectedMembers.size == groupMembers.size) {
+                                            emptyList()
+                                        } else {
+                                            groupMembers
+                                        }
+                                    }
+                            ) {
+                                Checkbox(
+                                    checked = tempSelectedMembers.size == groupMembers.size,
+                                    onCheckedChange = { checked ->
+                                        tempSelectedMembers = if (checked) groupMembers else emptyList()
+                                    }
+                                )
+                                Text("Assign to Everyone", modifier = Modifier.padding(start = 8.dp))
+                            }
+
+                            groupMembers.forEach { member ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            tempSelectedMembers = if (tempSelectedMembers.contains(member)) {
+                                                tempSelectedMembers - member
+                                            } else {
+                                                tempSelectedMembers + member
+                                            }
+                                        }
+                                        .padding(8.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = tempSelectedMembers.contains(member),
+                                        onCheckedChange = { checked ->
+                                            tempSelectedMembers = if (checked) {
+                                                tempSelectedMembers + member
+                                            } else {
+                                                tempSelectedMembers - member
+                                            }
+                                        }
+                                    )
+                                    Text(member, modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            itemAssignments = itemAssignments + (currentItem to tempSelectedMembers)
+                            selectedMembersMap = selectedMembersMap + (currentItem to tempSelectedMembers)
+                            dialogItem = null
+                        }) {
+                            Text("Done")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { dialogItem = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    val userAmounts = mutableMapOf<String, Double>()
+
+                    // Calculate each person's share for each item
+                    itemizedDetails.forEach { item ->
+                        val cost = itemCosts[item] ?: 0.0
+                        val assignedMembers = itemAssignments[item] ?: emptyList()
+
+                        if (assignedMembers.isNotEmpty()) {
+                            // Split the item cost among assigned members
+                            val splitAmount = cost / assignedMembers.size
+                            assignedMembers.forEach { member ->
+                                userAmounts[member] = (userAmounts[member] ?: 0.0) + splitAmount
+                            }
+                        }
+                    }
+
+                    amountsAssigned.value = userAmounts
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Calculate")
+            }
+        }
+
+        items(amountsAssigned.value.entries.toList()) { (member, amount) ->
+            Text(
+                "$member: $%.2f".format(amount),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
     }
 }
-
 
 @Composable
 fun GroupSelectionUI(
     db: FirebaseFirestore,
     userId: String,
-    onGroupSelected: (String, String) -> Unit, // Callback for group ID and name
-    modifier: Modifier = Modifier // Add a modifier parameter
+    onGroupSelected: (String, String, List<String>) -> Unit, // Callback for group selection
+    modifier: Modifier = Modifier
 ) {
     var showGroupDialog by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<Group?>(null) }
-    var selectedId by remember { mutableStateOf<String?>(null) } // State for selected group ID
+    var selectedId by remember { mutableStateOf<String?>(null) }
     var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var groupIdToJoin by remember { mutableStateOf("") } // State for group ID input
-    var showMembersDialog by remember { mutableStateOf(false) }
-    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
-    val context = LocalContext.current
 
-    // Fetch groups from Firestore
-    LaunchedEffect(userId) {
-        db.collection("groups")
-            .whereArrayContains("members", userId)
-            .get()
-            .addOnSuccessListener { documents ->
-                userGroups = documents.map { document ->
-                    Group(
-                        id = document.id, // Firestore document ID
-                        name = document.getString("name") ?: "Unnamed Group" // Group name
-                    )
-                }
-                if (userGroups.isNotEmpty()) {
-                    selectedGroup = userGroups[0] // Set selected group to the first one
-                    selectedId = userGroups[0].id // Set selected ID to the first group's ID
-                    onGroupSelected(userGroups[0].id, userGroups[0].name)
-                }
-                isLoading = false // Hide loading indicator after fetch
-            }
-            .addOnFailureListener { exception ->
-                Log.e("FirebaseError", "Error loading groups: ${exception.message}")
-                isLoading = false // Hide loading indicator if fetch fails
-            }
-    }
-
-    // Fetch Group Members and Get Usernames
-    fun fetchGroupMembers() {
-        if (selectedId == null) return
-
-        db.collection("groups").document(selectedId!!)
+    // Function to fetch group members and call the onGroupSelected callback
+    fun fetchGroupMembers(groupId: String, db: FirebaseFirestore, onGroupSelected: (String, String, List<String>) -> Unit) {
+        db.collection("groups").document(groupId)
             .get()
             .addOnSuccessListener { document ->
                 val memberIds = document.get("members") as? List<String> ?: emptyList()
@@ -484,30 +569,55 @@ fun GroupSelectionUI(
                         }
                 }
 
-                // Ensure all tasks complete before updating state
+                // Ensure all tasks complete before calling onGroupSelected
                 Tasks.whenAllComplete(tasks).addOnSuccessListener {
-                    groupMembers = namesList
-                    showMembersDialog = true
+                    // Pass groupId, groupName, and members to the parent composable
+                    onGroupSelected(groupId, selectedGroup?.name ?: "Unnamed Group", namesList)
                 }
             }
-            .addOnFailureListener { e ->
-                Log.e("FirestoreError", "Error fetching group members", e)
+            .addOnFailureListener {
+                Log.e("FirestoreError", "Error fetching group members")
             }
     }
+
+    // Fetch groups from Firestore only once
+    LaunchedEffect(userId) {
+        db.collection("groups")
+            .whereArrayContains("members", userId)
+            .get()
+            .addOnSuccessListener { documents ->
+                userGroups = documents.map { document ->
+                    Group(
+                        id = document.id,
+                        name = document.getString("name") ?: "Unnamed Group"
+                    )
+                }
+                if (userGroups.isNotEmpty()) {
+                    selectedGroup = userGroups[0]
+                    selectedId = userGroups[0].id
+                    // Fetch group members and pass to onGroupSelected
+                    fetchGroupMembers(selectedId!!, db, onGroupSelected)
+                }
+                isLoading = false
+            }
+            .addOnFailureListener {
+                isLoading = false
+            }
+    }
+
+
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Button to select group
             Button(onClick = { showGroupDialog = true }) {
                 Text("Current Group: ${selectedGroup?.name ?: "Loading..."}")
             }
 
-            // View Group Members Button
             Button(
-                onClick = { fetchGroupMembers() },
+                onClick = { /* Handle Group Members viewing */ },
                 enabled = selectedId != null
             ) {
                 Text("View Group Members")
@@ -530,57 +640,14 @@ fun GroupSelectionUI(
                                 onClick = {
                                     selectedGroup = group
                                     selectedId = group.id
-                                    onGroupSelected(group.id, group.name)
+                                    // Call onGroupSelected when a group is selected
+                                    fetchGroupMembers(group.id, db, onGroupSelected)
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(group.name)
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Button(
-                            onClick = {
-                                val intent = Intent(context, CreateGroupActivity::class.java)
-                                context.startActivity(intent)
-                                showGroupDialog = false
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Create New Group")
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = groupIdToJoin,
-                            onValueChange = { groupIdToJoin = it },
-                            label = { Text("Enter Group ID to Join") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Button(
-                            onClick = {
-                                if (groupIdToJoin.isNotBlank()) {
-                                    joinGroup(db, groupIdToJoin, userId) { success ->
-                                        if (success) {
-                                            Toast.makeText(context, "Successfully joined group!", Toast.LENGTH_SHORT).show()
-                                            showGroupDialog = false
-                                        } else {
-                                            Toast.makeText(context, "Failed to join group. Check the group ID.", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                } else {
-                                    Toast.makeText(context, "Please enter a group ID.", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Join Group")
                         }
                     }
                 },
@@ -591,28 +658,10 @@ fun GroupSelectionUI(
                 }
             )
         }
-
-        // Group Members Dialog
-        if (showMembersDialog) {
-            AlertDialog(
-                onDismissRequest = { showMembersDialog = false },
-                title = { Text("Group Members") },
-                text = {
-                    Column {
-                        groupMembers.forEach { name ->
-                            Text(name)
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = { showMembersDialog = false }) {
-                        Text("Close")
-                    }
-                }
-            )
-        }
     }
 }
+
+
 
 
 suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
