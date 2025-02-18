@@ -96,6 +96,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
+    val context = LocalContext.current
+
     NavigationBar {
         NavigationBarItem(
             icon = { Icon(Icons.Filled.Chat, contentDescription = "Chat") },
@@ -112,11 +114,14 @@ fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
         NavigationBarItem(
             icon = { Icon(Icons.Filled.CameraAlt, contentDescription = "Camera") },
             label = { Text("Camera") },
-            selected = selectedScreen == "Camera",
-            onClick = { onScreenSelected("Camera") }
+            selected = false,  // Prevent selection from sticking
+            onClick = {
+                context.startActivity(Intent(context, ReceiptProcessingActivity::class.java))
+            }
         )
     }
 }
+
 
 @Composable
 fun ChatScreen() {
