@@ -1,7 +1,9 @@
 package com.example.smartsplit
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,21 +19,28 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.smartsplit.ui.theme.SmartSplitTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class LoginActivity : ComponentActivity() {
 
     private lateinit var auth: FirebaseAuth
+    private lateinit var db: FirebaseFirestore
+    private lateinit var groupId: String
+    private lateinit var inviterId: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        auth = FirebaseAuth.getInstance()
+        groupId = intent.getStringExtra("groupId").toString()
+        inviterId = intent.getStringExtra("inviterId").toString()
 
+        db = FirebaseFirestore.getInstance()
+        auth = FirebaseAuth.getInstance()
         enableEdgeToEdge()
         setContent {
             SmartSplitTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    LoginScreen(auth, Modifier.padding(innerPadding))
+                    LoginScreen(auth, groupId, db, Modifier.padding(innerPadding))
                 }
             }
         }
@@ -39,11 +48,10 @@ class LoginActivity : ComponentActivity() {
 }
 
 @Composable
-fun LoginScreen(auth: FirebaseAuth, modifier: Modifier = Modifier) {
+fun LoginScreen(auth: FirebaseAuth, groupId: String, db: FirebaseFirestore, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -81,8 +89,17 @@ fun LoginScreen(auth: FirebaseAuth, modifier: Modifier = Modifier) {
                 auth.signInWithEmailAndPassword(email, password)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
+                            // check if user is part of a group
+
+                            val userId = auth.currentUser?.uid
+                            if (userId != null && groupId != null) {
+                                // Add the user to the group
+                                addUserToGroup(db, groupId, userId)
+                            }
+                            if (userId != null) {
+                                checkUserGroups(db, userId, context)
+                            }
                             Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-                            context.startActivity(Intent(context, MainActivity::class.java))
                         } else {
                             Toast.makeText(context, "Login Failed: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -103,3 +120,22 @@ fun LoginScreen(auth: FirebaseAuth, modifier: Modifier = Modifier) {
     }
 }
 
+fun checkUserGroups(db: FirebaseFirestore, userId: String, context: Context) {
+    db.collection("groups")
+        .whereArrayContains("members", userId)  // Query all groups where the user is a member
+        .get()
+        .addOnSuccessListener { documents ->
+            if (documents.isEmpty) {
+                // User is NOT in any group → Redirect to CreateGroupActivity
+                context.startActivity(Intent(context, CreateGroupActivity::class.java))
+            } else {
+                // User is in one or more groups → Collect group names and IDs
+                context.startActivity(Intent(context, MainActivity::class.java))
+
+            }
+        }
+        .addOnFailureListener { exception ->
+            Toast.makeText(context, "Error checking groups: ${exception.message}", Toast.LENGTH_SHORT).show()
+            Log.e("FirebaseError", exception.toString())
+        }
+}
