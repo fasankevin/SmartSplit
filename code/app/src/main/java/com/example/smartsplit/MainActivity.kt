@@ -1,5 +1,9 @@
 package com.example.smartsplit
 
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.Date
+
 import android.content.Context
 import com.google.firebase.dynamiclinks.ktx.androidParameters
 import com.google.firebase.dynamiclinks.ktx.dynamicLinks
@@ -27,15 +31,22 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material.icons.Icons
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.sp
 import com.example.smartsplit.models.ChatMessage
 import com.example.smartsplit.models.Group
 import com.example.smartsplit.utils.joinGroup
@@ -46,6 +57,12 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.Timestamp
 import com.google.android.gms.tasks.Tasks
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.ViewModel
+
+
 
 class MainActivity : ComponentActivity() {
 
@@ -54,21 +71,6 @@ class MainActivity : ComponentActivity() {
     private var selectedScreen by mutableStateOf("Chat")
     private lateinit var groupId: String
     private lateinit var inviterId: String
-
-    override fun onStart() {
-        super.onStart()
-        FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
-            PlayIntegrityAppCheckProviderFactory.getInstance()
-        )
-        if (FirebaseAuth.getInstance().currentUser == null) {
-            val intent = Intent(this, LoginActivity::class.java).apply {
-                putExtra("groupId", groupId)
-                putExtra("inviterId", inviterId)
-            }
-            startActivity(intent)
-            finish()
-        }
-    }
 
     private lateinit var db: FirebaseFirestore
     private lateinit var userId: String
@@ -85,23 +87,18 @@ class MainActivity : ComponentActivity() {
             .addOnSuccessListener { pendingDynamicLinkData ->
                 val deepLink = pendingDynamicLinkData?.link
                 if (deepLink != null) {
-                    val groupId = deepLink.getQueryParameter("groupId")
-                    val inviterId = deepLink.getQueryParameter("inviterId")
-
-                    if (groupId != null && inviterId != null) {
-                        // Check if the user is logged in
-                        val userId = FirebaseAuth.getInstance().currentUser
-                        if (userId != null) {
-                            // User is logged in, add them to the group
-                            addUserToGroup(db, groupId, userId.uid)
-                        } else {
-                            // User is not logged in, redirect to registration page
-                            val intent = Intent(this, RegisterActivity::class.java).apply {
-                                putExtra("groupId", groupId)
-                                putExtra("inviterId", inviterId)
-                            }
-                            startActivity(intent)
+                    groupId = deepLink.getQueryParameter("groupId") ?: ""
+                    inviterId = deepLink.getQueryParameter("inviterId") ?: ""
+                    val currentUser = FirebaseAuth.getInstance().currentUser
+                    if (currentUser != null && groupId.isNotEmpty()) {
+                        addUserToGroup(db, groupId, currentUser.uid)
+                    } else {
+                        val intent = Intent(this, RegisterActivity::class.java).apply {
+                            putExtra("groupId", groupId)
+                            putExtra("inviterId", inviterId)
                         }
+                        startActivity(intent)
+                        finish()
                     }
                 }
             }
@@ -109,7 +106,23 @@ class MainActivity : ComponentActivity() {
                 Log.e("DynamicLink", "Error handling Dynamic Link", e)
             }
 
+        // Firebase authentication state listener
+        FirebaseAuth.getInstance().addAuthStateListener { auth ->
+            val user = auth.currentUser
+            if (user != null) {
+                userId = user.uid // Use the logged-in user's ID
+                // If the user is logged in, show the main screen
+                setupMainScreen()
+            } else {
+                // If no user is logged in, redirect to login
+                redirectToLogin()
+            }
+        }
+
         enableEdgeToEdge()
+    }
+
+    private fun setupMainScreen() {
         setContent {
             val intent = intent
             val extractedPrices = intent.getStringArrayListExtra("extractedPrices") ?: arrayListOf()
@@ -124,12 +137,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun redirectToLogin() {
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            putExtra("groupId", groupId)
+            putExtra("inviterId", inviterId)
+        }
+        startActivity(intent)
+        finish()
+    }
+
     fun onPricesExtracted(extractedItems: List<String>, totalPrice: Double) {
         itemizedDetails = extractedItems // Set the extracted items
         totalAmount = totalPrice // Set the extracted total price
         selectedScreen = "BillSplitter" // Switch to BillSplitter screen
     }
-
 }
 
 @Composable
@@ -141,7 +162,7 @@ fun MainScreen(
 ) {
     var selectedScreen by remember { mutableStateOf("Chat") }
     var selectedGroupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
-    var selectedGroupId by remember { mutableStateOf("") }
+    var selectedGroupId by rememberSaveable { mutableStateOf("") }
     var selectedGroupName by remember { mutableStateOf("") }
     val context = LocalContext.current
 
@@ -151,6 +172,7 @@ fun MainScreen(
         selectedGroupName = groupName
         selectedGroupMembers = groupMembers
     }
+
     // Launcher for ReceiptProcessingActivity
     val resultLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -199,11 +221,156 @@ fun MainScreen(
                     "Camera" -> {
                         // Do nothing here; the LaunchedEffect above handles starting the activity
                     }
+                    "Settings" -> SettingsScreen(db)  // Show the settings screen
                 }
             }
         }
     }
 }
+
+@Composable
+fun SettingsScreen(db: FirebaseFirestore) {
+    val user = FirebaseAuth.getInstance().currentUser
+    val context = LocalContext.current
+    var username by remember { mutableStateOf("No username") }
+    var newUsername by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var passwordConfirmation by remember { mutableStateOf("") }
+    var usernameError by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf("") }
+    var showUsernameChange by remember { mutableStateOf(false) }
+    var showPasswordChange by remember { mutableStateOf(false) }
+
+    // Fetch the current username from Firestore
+    LaunchedEffect(user?.uid) {
+        user?.uid?.let { uid ->
+            db.collection("users").document(uid).get()
+                .addOnSuccessListener { document ->
+                    username = document.getString("username") ?: "No username"
+                }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Account Details", style = MaterialTheme.typography.headlineMedium)
+
+        // Display user details (e.g., email, username)
+        if (user != null) {
+            Text("Username: $username", style = MaterialTheme.typography.bodyLarge)
+            Text("Email: ${user.email}", style = MaterialTheme.typography.bodyLarge)
+
+        }
+
+        // "Change Username" Button
+        Button(onClick = { showUsernameChange = !showUsernameChange }) {
+            Text("Change Username")
+        }
+
+        // Show the username change UI if the button is clicked
+        if (showUsernameChange) {
+            OutlinedTextField(
+                value = newUsername,
+                onValueChange = { newUsername = it },
+                label = { Text("New Username") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (usernameError.isNotEmpty()) {
+                Text(usernameError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(onClick = {
+                if (newUsername.isNotEmpty()) {
+                    val userId = user?.uid
+                    if (userId != null) {
+                        // Update username in Firestore
+                        db.collection("users").document(userId)
+                            .update("username", newUsername)
+                            .addOnSuccessListener {
+                                Toast.makeText(context, "Username updated", Toast.LENGTH_SHORT).show()
+                                showUsernameChange = false  // Hide the change username UI after successful update
+                            }
+                            .addOnFailureListener { e ->
+                                Toast.makeText(context, "Error updating username: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                    }
+                } else {
+                    usernameError = "Username cannot be empty."
+                }
+            }) {
+                Text("Update Username")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // "Change Password" Button
+        Button(onClick = { showPasswordChange = !showPasswordChange }) {
+            Text("Change Password")
+        }
+
+        // Show the password change UI if the button is clicked
+        if (showPasswordChange) {
+            OutlinedTextField(
+                value = newPassword,
+                onValueChange = { newPassword = it },
+                label = { Text("New Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = passwordConfirmation,
+                onValueChange = { passwordConfirmation = it },
+                label = { Text("Confirm Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (passwordError.isNotEmpty()) {
+                Text(passwordError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(onClick = {
+                if (newPassword == passwordConfirmation) {
+                    val user = FirebaseAuth.getInstance().currentUser
+                    user?.updatePassword(newPassword)?.addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            Toast.makeText(context, "Password updated", Toast.LENGTH_SHORT).show()
+                            showPasswordChange = false  // Hide the change password UI after successful update
+                        } else {
+                            Toast.makeText(context, "Error updating password: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    passwordError = "Passwords do not match."
+                }
+            }) {
+                Text("Update Password")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Log out button
+        Button(onClick = {
+            FirebaseAuth.getInstance().signOut()
+            context.startActivity(Intent(context, LoginActivity::class.java))
+        }) {
+            Text("Log Out")
+        }
+    }
+}
+
+
 
 @Composable
 fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
@@ -222,39 +389,50 @@ fun BottomNavBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
             selected = selectedScreen == "BillSplitter",
             onClick = { onScreenSelected("BillSplitter") }
         )
+
         NavigationBarItem(
             icon = { Icon(Icons.Filled.CameraAlt, contentDescription = "Camera") },
             label = { Text("Camera") },
             selected = false,  // Prevent selection from sticking
             onClick = {
                 context.startActivity(Intent(context, ReceiptProcessingActivity::class.java))
+
+
             }
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Settings, contentDescription = "Settings") },
+            label = { Text("Settings") },
+            selected = selectedScreen == "Settings",
+            onClick = { onScreenSelected("Settings") }
         )
     }
 }
 
 
 @Composable
-fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, selectedGroupId: String,      // Receive selected group ID
-               selectedGroupName: String,    // Receive selected group name
-               selectedGroupMembers: List<String>,
-               onGroupSelected: (String, String, List<String>) -> Unit // Receive the callback here
+fun ChatScreen(
+    context: Context,
+    db: FirebaseFirestore,
+    userId: String,
+    selectedGroupId: String,
+    selectedGroupName: String,
+    selectedGroupMembers: List<String>,
+    onGroupSelected: (String, String, List<String>) -> Unit
 ) {
     var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var currentMessage by remember { mutableStateOf("") }
     var groupId by remember { mutableStateOf<String?>(selectedGroupId) }
     var groupName by remember { mutableStateOf<String?>(null) }
     var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
-    var shouldGenerateLink by remember { mutableStateOf(false) }
-
 
     // Create LazyListState for controlling scroll position
     val listState = rememberLazyListState()
 
     // Firestore listener for real-time message updates
-    DisposableEffect(selectedGroupId) {
+    DisposableEffect(groupId) {
         val listenerRegistration = db.collection("messages")
-            .whereEqualTo("groupId", selectedGroupId)
+            .whereEqualTo("groupId", groupId)
             .orderBy("timestamp", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -262,21 +440,33 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, selected
                     return@addSnapshotListener
                 }
 
-                val messages = snapshot?.documents?.mapNotNull { document ->
-                    ChatMessage(
-                        id = document.id,
-                        senderId = document.getString("senderId") ?: "",
-                        message = document.getString("message") ?: "",
-                        timestamp = document.getTimestamp("timestamp") ?: Timestamp.now(),
-                        groupId = document.getString("groupId") ?: ""
-                    )
-                } ?: emptyList()
+                val messages = mutableListOf<ChatMessage>()
 
-                chatMessages = messages
+                snapshot?.documents?.forEach { document ->
+                    val senderId = document.getString("senderId") ?: ""
+                    val messageText = document.getString("message") ?: ""
+
+                    db.collection("users").document(senderId).get()
+                        .addOnSuccessListener { userDoc ->
+                            val senderName = userDoc.getString("username") ?: "Unknown"
+                            messages.add(
+                                ChatMessage(
+                                    id = document.id,
+                                    senderId = senderId,
+                                    senderName = senderName,
+                                    message = messageText,
+                                    timestamp = document.getTimestamp("timestamp") ?: Timestamp.now(),
+                                    groupId = groupId!!
+                                )
+                            )
+                            // Only update chatMessages if the messages list has changed
+                            chatMessages = messages.sortedBy { it.timestamp }
+                        }
+                }
             }
 
         onDispose {
-            listenerRegistration.remove()
+            listenerRegistration.remove() // Remove previous listener when a new group is selected
         }
     }
 
@@ -287,54 +477,33 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, selected
         }
     }
 
+    // Layout content
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("Chat Mode", style = MaterialTheme.typography.headlineMedium)
-
-            // Invite Friend Button
-            Button(
-                onClick = {
-                    if (groupId != null) {
-                        shouldGenerateLink = true
-                    } else {
-                        Toast.makeText(context, "Please select a group first", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                modifier = Modifier.width(170.dp).padding(start = 8.dp)
-            ) {
-                Text("Invite Friend")
-            }
-        }
-
         // Group Selection UI
         GroupSelectionUI(
             db = db,
             userId = userId,
             onGroupSelected = { id, name, members ->
-                groupId = id  // Update groupId when a new group is selected
-                groupName = name  // Update groupName when a new group is selected
-                groupMembers = members // Update groupMembers when a new group is selected
-                onGroupSelected(id, name, members)  // Pass to the callback
+                groupId = id
+                groupName = name
+                groupMembers = members
+                onGroupSelected(id, name, members)
+                chatMessages = emptyList() // Clear old messages when a new group is selected
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().padding(bottom = 0.1.dp)
         )
 
-        // Generate the invitation link
-        if (shouldGenerateLink) {
-            LaunchedEffect(Unit) {
-                val invitationLink = generateInvitationLink(groupId!!, userId)
-                shareInvitationLink(context, invitationLink, groupId!!)
-                shouldGenerateLink = false
-            }
-        }
+        // Divider between group details and chat box
+        Divider(
+            color = Color.Gray,
+            thickness = 0.5.dp,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 0.5.dp)
+        )
 
-        // Display chat messages using LazyColumn for better scroll control
+        // Display chat messages using LazyColumn for scroll control
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -375,13 +544,12 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, selected
                         groupId = groupId!!
                     )
 
-                    // add the message to UI before Firestore updates
+                    // Add the message to UI before Firestore updates
                     chatMessages = chatMessages + tempMessage
 
                     db.collection("messages")
                         .add(message)
                         .addOnSuccessListener { documentReference ->
-                            // Optional: Update message ID if needed
                             chatMessages = chatMessages.map {
                                 if (it.id.isEmpty()) it.copy(id = documentReference.id) else it
                             }
@@ -397,10 +565,12 @@ fun ChatScreen(context: Context, db: FirebaseFirestore, userId: String, selected
         ) {
             Text("Send")
         }
-
-
     }
 }
+
+
+
+
 
 @Composable
 fun BillSplitterScreen(
@@ -415,12 +585,19 @@ fun BillSplitterScreen(
 
     // Extract cost from each item string (format "item: $cost")
     val itemCosts = remember(itemizedDetails) {
-        itemizedDetails.associate { item ->
+        val costs = itemizedDetails.associate { item ->
             val parts = item.split(":")
-            val costString = parts.getOrNull(1)?.trim()?.removePrefix("$")?.toDoubleOrNull() ?: 0.0
-            item to costString
+            val costString = parts.getOrNull(1)?.trim()?.removePrefix("€")?.toDoubleOrNull()
+
+            // Log the raw string and parsed cost for debugging
+            Log.d("ItemParsing", "Raw item: $item, Parsed cost: $costString")
+
+            item to (costString ?: 0.0) // Use 0.0 if parsing fails
         }
+        Log.d("ItemCosts", "Item Costs: $costs") // Log the full item costs map
+        costs
     }
+
 
     LazyColumn(
         modifier = Modifier
@@ -541,19 +718,31 @@ fun BillSplitterScreen(
                 onClick = {
                     val userAmounts = mutableMapOf<String, Double>()
 
+                    // Log the itemAssignments before calculation
+                    Log.d("ItemAssignments", "Item Assignments: $itemAssignments")
+
                     // Calculate each person's share for each item
                     itemizedDetails.forEach { item ->
                         val cost = itemCosts[item] ?: 0.0
                         val assignedMembers = itemAssignments[item] ?: emptyList()
 
+                        Log.d("BillSplitter", "Item: $item, Cost: $cost, Assigned Members: $assignedMembers")
+
                         if (assignedMembers.isNotEmpty()) {
                             // Split the item cost among assigned members
                             val splitAmount = cost / assignedMembers.size
+                            Log.d("BillSplitter", "Split Amount for $item: $splitAmount")
+
                             assignedMembers.forEach { member ->
                                 userAmounts[member] = (userAmounts[member] ?: 0.0) + splitAmount
                             }
+                        } else {
+                            Log.d("BillSplitter", "No members assigned to item: $item")
                         }
                     }
+
+                    // Debugging log
+                    Log.d("AmountsAssigned", "User amounts: $userAmounts")
 
                     amountsAssigned.value = userAmounts
                 },
@@ -565,13 +754,49 @@ fun BillSplitterScreen(
 
         items(amountsAssigned.value.entries.toList()) { (member, amount) ->
             Text(
-                "$member: $%.2f".format(amount),
+                "$member: €%.2f".format(amount),
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
     }
 }
+
+
+
+
+
+fun fetchGroupMembers(groupId: String, db: FirebaseFirestore, onMembersFetched: (List<String>) -> Unit) {
+    db.collection("groups").document(groupId).get()
+        .addOnSuccessListener { document ->
+            val memberIds = document.get("members") as? List<String> ?: emptyList()
+
+            if (memberIds.isEmpty()) {
+                onMembersFetched(emptyList())
+                return@addOnSuccessListener
+            }
+
+            val userNames = mutableListOf<String>()
+            val tasks = memberIds.map { userId ->
+                db.collection("users").document(userId).get()
+                    .addOnSuccessListener { userDoc ->
+                        val username = userDoc.getString("username") ?: userId // Fallback to userId
+                        userNames.add(username)
+
+                        // When all usernames are fetched, update UI
+                        if (userNames.size == memberIds.size) {
+                            onMembersFetched(userNames)
+                        }
+                    }
+            }
+        }
+        .addOnFailureListener {
+            onMembersFetched(emptyList()) // Handle failure
+        }
+}
+
+
+
 
 @Composable
 fun GroupSelectionUI(
@@ -590,37 +815,7 @@ fun GroupSelectionUI(
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
-    // Function to fetch group members and call the onGroupSelected callback
-    fun fetchGroupMembers(groupId: String, db: FirebaseFirestore, onGroupSelected: (String, String, List<String>) -> Unit) {
-        db.collection("groups").document(groupId)
-            .get()
-            .addOnSuccessListener { document ->
-                val memberIds = document.get("members") as? List<String> ?: emptyList()
-
-                val namesList = mutableListOf<String>()
-                val tasks = memberIds.map { memberId ->
-                    db.collection("users").document(memberId).get()
-                        .addOnSuccessListener { userDoc ->
-                            val name = userDoc.getString("username") ?: "Unknown"
-                            namesList.add(name)
-                        }
-                }
-
-                // Ensure all tasks complete before calling onGroupSelected
-                Tasks.whenAllComplete(tasks).addOnSuccessListener {
-                    // Pass groupId, groupName, and members to the parent composable
-                    groupMembers = namesList
-                    selectedGroup?.let { it1 -> onGroupSelected(it1.id, selectedGroup?.name ?: "Unnamed Group", namesList) }
-                    Log.d("Firestore", "Fetched Members: $namesList for Group: ${selectedGroup?.name}")
-
-                }
-            }
-            .addOnFailureListener {
-                Log.e("FirestoreError", "Error fetching group members")
-            }
-    }
-
-    // Fetch groups from Firestore only once
+    // Fetch groups from Firestore
     LaunchedEffect(userId) {
         db.collection("groups")
             .whereArrayContains("members", userId)
@@ -632,12 +827,6 @@ fun GroupSelectionUI(
                         name = document.getString("name") ?: "Unnamed Group"
                     )
                 }
-                if (userGroups.isNotEmpty()) {
-                    selectedGroup = userGroups[0]
-                    selectedId = userGroups[0].id
-                    // Fetch group members and pass to onGroupSelected
-                    fetchGroupMembers(selectedId!!, db, onGroupSelected)
-                }
                 isLoading = false
             }
             .addOnFailureListener {
@@ -645,27 +834,46 @@ fun GroupSelectionUI(
             }
     }
 
-
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        // Current Group Button
+        Button(
+            onClick = { showGroupDialog = true },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Button(onClick = { showGroupDialog = true }) {
-                Text("Current Group: ${selectedGroup?.name ?: "Loading..."}")
-            }
-
-            Button(
-                onClick = { showMembersDialog = true },
-                enabled = groupMembers.isNotEmpty() // Only enable if there are members to display
-            ) {
-                Text("View Group Members")
-            }
+            Text(
+                text = "Current Group: ${selectedGroup?.name ?: "Loading..."}",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
+
+        Spacer(modifier = Modifier.height(4.dp)) // Reduced spacing
+
+        // Group Details Button moved here
+        Button(
+            onClick = { showMembersDialog = true },
+            enabled = selectedGroup != null,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Group Details")
+        }
+
+        Spacer(modifier = Modifier.height(0.1.dp)) // Reduced spacing
 
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
+        }
+
+        if (userGroups.isEmpty() && !isLoading) {
+            Text(
+                text = "No groups found. Create or join one!",
+                fontStyle = FontStyle.Italic,
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
 
         // Group Selection Dialog
@@ -679,9 +887,11 @@ fun GroupSelectionUI(
                             Button(
                                 onClick = {
                                     selectedGroup = group
-                                    onGroupSelected(group.id, group.name, groupMembers) // Pass group ID and name to the callback
-                                    groupMembers = emptyList() // Reset group members when a new group is selected
-                                    fetchGroupMembers(group.id, db, onGroupSelected) // Fetch members for the new group
+                                    groupMembers = emptyList() // Reset members
+                                    fetchGroupMembers(group.id, db) { members ->
+                                        groupMembers = members
+                                        onGroupSelected(group.id, group.name, members)
+                                    }
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
@@ -690,8 +900,9 @@ fun GroupSelectionUI(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(0.1.dp))
 
+                        // Button to create a new group
                         Button(
                             onClick = {
                                 val intent = Intent(context, CreateGroupActivity::class.java)
@@ -702,8 +913,10 @@ fun GroupSelectionUI(
                         ) {
                             Text("Create New Group")
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
 
+                        Spacer(modifier = Modifier.height(0.1.dp))
+
+                        // Join Group Section
                         OutlinedTextField(
                             value = groupIdToJoin,
                             onValueChange = { groupIdToJoin = it },
@@ -711,7 +924,7 @@ fun GroupSelectionUI(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(0.1.dp))
 
                         Button(
                             onClick = {
@@ -742,15 +955,18 @@ fun GroupSelectionUI(
             )
         }
 
-        // Group Members Dialog
+        // Group Details Dialog
         if (showMembersDialog) {
             AlertDialog(
                 onDismissRequest = { showMembersDialog = false },
-                title = { Text("Group Members") },
+                title = { Text("Group Details") },
                 text = {
                     Column {
-                        groupMembers.forEach { name ->
-                            Text(name)
+                        Text("Group ID: ${selectedGroup?.id ?: "Unknown"}", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(0.5.dp))
+                        Text("Members:", fontWeight = FontWeight.Bold)
+                        groupMembers.forEach { member ->
+                            Text("- $member")
                         }
                     }
                 },
@@ -763,6 +979,10 @@ fun GroupSelectionUI(
         }
     }
 }
+
+
+
+
 
 suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
     val dynamicLink = Firebase.dynamicLinks.shortLinkAsync {
@@ -789,33 +1009,47 @@ fun shareInvitationLink(context: Context, invitationLink: String, groupId: Strin
 
 @Composable
 fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
-    val currentUserColor = Color(0xFF2A4174) // Dark blue for the current user
-    val otherUserColor = Color.LightGray // Light grey for other users
-
-    val bubbleColor = if (isCurrentUser) {
-        currentUserColor
-    } else {
-        otherUserColor
-    }
-
-    val textColor = Color.White // White text for both current user and other users
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        contentAlignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
+    val timestampText = message.timestamp?.let {
+        val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
+        sdf.format(it.toDate()) // Convert Firebase Timestamp to Date
+    } ?: ""
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isCurrentUser) Alignment.End else Alignment.Start
     ) {
+        // Display sender name or "Me"
+        Text(
+            text = if (isCurrentUser) "Me" else message.senderName,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Gray,
+            modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
+        )
+
+        // Message bubble
         Surface(
-            color = bubbleColor,
-            shape = RoundedCornerShape(16.dp)
+            color = if (isCurrentUser) Color(0xFF2A4174) else Color.LightGray,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.padding(4.dp)
         ) {
-            Text(
-                text = message.message,
-                color = textColor,
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            Column(
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text(
+                    text = message.message,
+                    color = Color.White
+                )
+
+                // Display timestamp below message
+                Text(
+                    text = timestampText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
+                )
+            }
         }
     }
 }
+
+
+

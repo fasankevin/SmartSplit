@@ -286,7 +286,9 @@
           <option name="api" value="34" />
           <option name="brand" value="samsung" />
           <option name="codename" value="gta7lite" />
+          <option name="formFactor" value="Tablet" />
           <option name="id" value="gta7lite" />
+          <option name="labId" value="google" />
           <option name="manufacturer" value="Samsung" />
           <option name="name" value="Galaxy Tab A7 Lite" />
           <option name="screenDensity" value="179" />
@@ -433,6 +435,7 @@
           <option name="brand" value="samsung" />
           <option name="codename" value="r11q" />
           <option name="id" value="r11q" />
+          <option name="labId" value="google" />
           <option name="manufacturer" value="Samsung" />
           <option name="name" value="SM-S711U" />
           <option name="screenDensity" value="450" />
