@@ -1011,7 +1011,9 @@ fun GroupSelectionUI(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Creation Time
-                        val creationTime = selectedGroup?.timestamp?.toDate()?.toString() ?: "Unknown"
+                        val creationTime = selectedGroup?.timestamp?.toDate()?.let {
+                            SimpleDateFormat("dd MMM yyyy HH:mm:ss", Locale.getDefault()).format(it)
+                        } ?: "Unknown"
                         Text("Creation Time: $creationTime", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
 

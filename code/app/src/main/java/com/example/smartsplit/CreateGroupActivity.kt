@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.smartsplit.ui.theme.SmartSplitTheme
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -118,7 +119,7 @@ private fun createGroupInFirestore(
     val groupData = hashMapOf(
         "name" to groupName,
         "members" to listOf(creatorId),
-        "timestamp" to FieldValue.serverTimestamp(),
+        "timestamp" to Timestamp.now(),
         "createdBy" to creatorId
     )
 
