@@ -1,5 +1,6 @@
 package com.example.smartsplit
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -18,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.smartsplit.ui.theme.SmartSplitTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 
 class CreateGroupActivity : ComponentActivity() {
@@ -42,9 +44,14 @@ class CreateGroupActivity : ComponentActivity() {
 }
 
 @Composable
-fun CreateGroupScreen(currentUserId: String, db: FirebaseFirestore, modifier: Modifier = Modifier) {
+fun CreateGroupScreen(
+    currentUserId: String,
+    db: FirebaseFirestore,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     var groupName by remember { mutableStateOf("") }
+    var isCreating by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -58,7 +65,8 @@ fun CreateGroupScreen(currentUserId: String, db: FirebaseFirestore, modifier: Mo
             onValueChange = { groupName = it },
             label = { Text("Group Name") },
             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isCreating
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -70,39 +78,75 @@ fun CreateGroupScreen(currentUserId: String, db: FirebaseFirestore, modifier: Mo
                     return@Button
                 }
 
-                // Create the group in Firestore
-                createGroupInFirestore(groupName, context, db, currentUserId)
+                isCreating = true
+                createGroupInFirestore(
+                    groupName = groupName,
+                    context = context,
+                    db = db,
+                    creatorId = currentUserId,
+                    onComplete = { success ->
+                        isCreating = false
+                        if (!success) {
+                            // Reset only if creation failed
+                            groupName = ""
+                        }
+                    }
+                )
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isCreating && groupName.isNotEmpty()
         ) {
-            Text("Create Group")
+            if (isCreating) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text("Create Group")
+            }
         }
     }
 }
 
-fun createGroupInFirestore(groupName: String, context: Context, db: FirebaseFirestore, creatorId: String) {
-    // Create a new group document with the group name and initial members (the creator)
+private fun createGroupInFirestore(
+    groupName: String,
+    context: Context,
+    db: FirebaseFirestore,
+    creatorId: String,
+    onComplete: (Boolean) -> Unit
+) {
     val groupData = hashMapOf(
         "name" to groupName,
-        "members" to listOf(creatorId) // Add the current user as the first member
+        "members" to listOf(creatorId),
+        "timestamp" to FieldValue.serverTimestamp(),
+        "createdBy" to creatorId
     )
 
-    // Add the group to Firestore
     db.collection("groups")
         .add(groupData)
         .addOnSuccessListener { documentReference ->
-            // Save the group's document ID for future use (optional)
             val groupId = documentReference.id
 
-
-            // Navigate to the main screen after creating the group
-
-            context.startActivity(Intent(context, MainActivity::class.java))
-            (context as CreateGroupActivity).finish()
+            // Create success notification
             Toast.makeText(context, "Group Created Successfully", Toast.LENGTH_SHORT).show()
 
+            // Navigate back to main activity
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+
+            // Finish current activity
+            (context as? Activity)?.finish()
+
+            onComplete(true)
         }
         .addOnFailureListener { exception ->
-            Toast.makeText(context, "Error creating group: ${exception.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                "Error creating group: ${exception.message}",
+                Toast.LENGTH_SHORT
+            ).show()
+            onComplete(false)
         }
 }

@@ -61,7 +61,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.ViewModel
-
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.smartsplit.models.GroupSelectionViewModel
+import com.example.smartsplit.models.generateInvitationLink
+import com.example.smartsplit.models.shareInvitationLink
+import kotlinx.coroutines.launch
 
 
 class MainActivity : ComponentActivity() {
@@ -158,7 +162,8 @@ fun MainScreen(
     db: FirebaseFirestore,
     userId: String,
     extractedPrices: List<String>,
-    extractedTotal: Double
+    extractedTotal: Double,
+    viewModel: GroupSelectionViewModel = viewModel()
 ) {
     var selectedScreen by remember { mutableStateOf("Chat") }
     var selectedGroupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -206,16 +211,19 @@ fun MainScreen(
                         context = context,
                         db = db,
                         userId = userId,
-                        selectedGroupId = selectedGroupId,      // Pass selected group ID
-                        selectedGroupName = selectedGroupName,  // Pass selected group Name
-                        selectedGroupMembers = selectedGroupMembers,
-                        onGroupSelected = onGroupSelected
+                        viewModel = viewModel,  // Pass the ViewModel
+                        onGroupSelected = { groupId, groupName, groupMembers, createdBy->
+                            viewModel.selectGroup(Group(
+                                groupId, groupName, Timestamp.now(), createdBy ))
+                            viewModel.fetchGroupMembers(db, groupId)
+                        }
                     )
                     "BillSplitter" -> {
+                        val groupMembers by viewModel.groupMembers.collectAsState()
                         BillSplitterScreen(
                             itemizedDetails = extractedPrices,
                             totalAmount = extractedTotal,
-                            groupMembers = selectedGroupMembers
+                            groupMembers = groupMembers  // Use group members from ViewModel
                         )
                     }
                     "Camera" -> {
@@ -252,7 +260,9 @@ fun SettingsScreen(db: FirebaseFirestore) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Account Details", style = MaterialTheme.typography.headlineMedium)
@@ -306,7 +316,7 @@ fun SettingsScreen(db: FirebaseFirestore) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // "Change Password" Button
         Button(onClick = { showPasswordChange = !showPasswordChange }) {
@@ -358,7 +368,7 @@ fun SettingsScreen(db: FirebaseFirestore) {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Log out button
         Button(onClick = {
@@ -415,22 +425,28 @@ fun ChatScreen(
     context: Context,
     db: FirebaseFirestore,
     userId: String,
-    selectedGroupId: String,
-    selectedGroupName: String,
-    selectedGroupMembers: List<String>,
-    onGroupSelected: (String, String, List<String>) -> Unit
+    viewModel: GroupSelectionViewModel = viewModel(),
+    onGroupSelected: (String, String, List<String>, String) -> Unit
 ) {
+    // State from the ViewModel
+    val selectedGroup by viewModel.selectedGroup.collectAsState()
+    val groupMembers by viewModel.groupMembers.collectAsState()
+
+    // Local state for chat messages and current message
     var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var currentMessage by remember { mutableStateOf("") }
-    var groupId by remember { mutableStateOf<String?>(selectedGroupId) }
-    var groupName by remember { mutableStateOf<String?>(null) }
-    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // Create LazyListState for controlling scroll position
+    // LazyListState for controlling scroll position
     val listState = rememberLazyListState()
 
     // Firestore listener for real-time message updates
-    DisposableEffect(groupId) {
+    DisposableEffect(selectedGroup?.id) {
+        val groupId = selectedGroup?.id
+        if (groupId == null) {
+            chatMessages = emptyList()
+            return@DisposableEffect onDispose { }
+        }
+
         val listenerRegistration = db.collection("messages")
             .whereEqualTo("groupId", groupId)
             .orderBy("timestamp", Query.Direction.ASCENDING)
@@ -440,33 +456,40 @@ fun ChatScreen(
                     return@addSnapshotListener
                 }
 
-                val messages = mutableListOf<ChatMessage>()
+                snapshot?.let {
+                    val messages = it.documents.mapNotNull { document ->
+                        val senderId = document.getString("senderId") ?: return@mapNotNull null
+                        val messageText = document.getString("message") ?: return@mapNotNull null
+                        val timestamp = document.getTimestamp("timestamp") ?: Timestamp.now()
 
-                snapshot?.documents?.forEach { document ->
-                    val senderId = document.getString("senderId") ?: ""
-                    val messageText = document.getString("message") ?: ""
+                        ChatMessage(
+                            id = document.id,
+                            senderId = senderId,
+                            senderName = "Loading...", // Placeholder until user data is fetched
+                            message = messageText,
+                            timestamp = timestamp,
+                            groupId = groupId
+                        )
+                    }
 
-                    db.collection("users").document(senderId).get()
-                        .addOnSuccessListener { userDoc ->
-                            val senderName = userDoc.getString("username") ?: "Unknown"
-                            messages.add(
-                                ChatMessage(
-                                    id = document.id,
-                                    senderId = senderId,
-                                    senderName = senderName,
-                                    message = messageText,
-                                    timestamp = document.getTimestamp("timestamp") ?: Timestamp.now(),
-                                    groupId = groupId!!
-                                )
-                            )
-                            // Only update chatMessages if the messages list has changed
-                            chatMessages = messages.sortedBy { it.timestamp }
-                        }
+                    chatMessages = messages
+
+                    // Fetch usernames for all senderIds in one go
+                    val senderIds = messages.map { it.senderId }.toSet()
+                    senderIds.forEach { senderId ->
+                        db.collection("users").document(senderId).get()
+                            .addOnSuccessListener { userDoc ->
+                                val senderName = userDoc.getString("username") ?: "Unknown"
+                                chatMessages = chatMessages.map { msg ->
+                                    if (msg.senderId == senderId) msg.copy(senderName = senderName) else msg
+                                }
+                            }
+                    }
                 }
             }
 
         onDispose {
-            listenerRegistration.remove() // Remove previous listener when a new group is selected
+            listenerRegistration.remove()
         }
     }
 
@@ -479,34 +502,40 @@ fun ChatScreen(
 
     // Layout content
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Group Selection UI
         GroupSelectionUI(
             db = db,
             userId = userId,
-            onGroupSelected = { id, name, members ->
-                groupId = id
-                groupName = name
-                groupMembers = members
-                onGroupSelected(id, name, members)
-                chatMessages = emptyList() // Clear old messages when a new group is selected
+            onGroupSelected = { id, name, members, createdBy ->
+                viewModel.selectGroup(Group(id, name, Timestamp.now(), createdBy))
+                viewModel.fetchGroupMembers(db, id)
+                onGroupSelected(id, name, members, createdBy)
             },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 0.1.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 0.1.dp)
         )
 
         // Divider between group details and chat box
         Divider(
             color = Color.Gray,
             thickness = 0.5.dp,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 0.5.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 0.5.dp)
         )
 
         // Display chat messages using LazyColumn for scroll control
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(chatMessages) { message ->
@@ -528,6 +557,7 @@ fun ChatScreen(
         // Send message button
         Button(
             onClick = {
+                val groupId = selectedGroup?.id
                 if (currentMessage.isNotBlank() && groupId != null) {
                     val message = hashMapOf(
                         "senderId" to userId,
@@ -541,7 +571,7 @@ fun ChatScreen(
                         senderId = userId,
                         message = currentMessage,
                         timestamp = Timestamp.now(),
-                        groupId = groupId!!
+                        groupId = groupId
                     )
 
                     // Add the message to UI before Firestore updates
@@ -650,11 +680,12 @@ fun BillSplitterScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        tempSelectedMembers = if (tempSelectedMembers.size == groupMembers.size) {
-                                            emptyList()
-                                        } else {
-                                            groupMembers
-                                        }
+                                        tempSelectedMembers =
+                                            if (tempSelectedMembers.size == groupMembers.size) {
+                                                emptyList()
+                                            } else {
+                                                groupMembers
+                                            }
                                     }
                             ) {
                                 Checkbox(
@@ -672,11 +703,12 @@ fun BillSplitterScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            tempSelectedMembers = if (tempSelectedMembers.contains(member)) {
-                                                tempSelectedMembers - member
-                                            } else {
-                                                tempSelectedMembers + member
-                                            }
+                                            tempSelectedMembers =
+                                                if (tempSelectedMembers.contains(member)) {
+                                                    tempSelectedMembers - member
+                                                } else {
+                                                    tempSelectedMembers + member
+                                                }
                                         }
                                         .padding(8.dp)
                                 ) {
@@ -802,36 +834,30 @@ fun fetchGroupMembers(groupId: String, db: FirebaseFirestore, onMembersFetched: 
 fun GroupSelectionUI(
     db: FirebaseFirestore,
     userId: String,
-    onGroupSelected: (String, String, List<String>) -> Unit, // Callback for group selection
+    onGroupSelected: (String, String, List<String>, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Get the ViewModel instance using the viewModel() function
+    val viewModel: GroupSelectionViewModel = viewModel()
+
+    // Collect the states from the ViewModel
+    val userGroups by viewModel.userGroups.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val selectedGroup by viewModel.selectedGroup.collectAsState()
+    val groupMembers by viewModel.groupMembers.collectAsState()
+    val creatorUsername by viewModel.creatorUsername.collectAsState()
+
     var showGroupDialog by remember { mutableStateOf(false) }
-    var selectedGroup by remember { mutableStateOf<Group?>(null) }
-    var selectedId by remember { mutableStateOf<String?>(null) }
-    var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var showMembersDialog by remember { mutableStateOf(false) }
-    var groupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
     var groupIdToJoin by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
-    // Fetch groups from Firestore
-    LaunchedEffect(userId) {
-        db.collection("groups")
-            .whereArrayContains("members", userId)
-            .get()
-            .addOnSuccessListener { documents ->
-                userGroups = documents.map { document ->
-                    Group(
-                        id = document.id,
-                        name = document.getString("name") ?: "Unnamed Group"
-                    )
-                }
-                isLoading = false
-            }
-            .addOnFailureListener {
-                isLoading = false
-            }
+    // Get a coroutine scope for launching coroutines
+    val coroutineScope = rememberCoroutineScope()
+
+    // Fetch groups only once when the composable is first launched
+    LaunchedEffect(Unit) {
+        viewModel.fetchGroups(db, userId)
     }
 
     Column(
@@ -851,7 +877,7 @@ fun GroupSelectionUI(
             )
         }
 
-        Spacer(modifier = Modifier.height(4.dp)) // Reduced spacing
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Group Details Button moved here
         Button(
@@ -862,7 +888,7 @@ fun GroupSelectionUI(
             Text("Group Details")
         }
 
-        Spacer(modifier = Modifier.height(0.1.dp)) // Reduced spacing
+        Spacer(modifier = Modifier.height(0.1.dp))
 
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
@@ -886,12 +912,14 @@ fun GroupSelectionUI(
                         userGroups.forEach { group ->
                             Button(
                                 onClick = {
-                                    selectedGroup = group
-                                    groupMembers = emptyList() // Reset members
-                                    fetchGroupMembers(group.id, db) { members ->
-                                        groupMembers = members
-                                        onGroupSelected(group.id, group.name, members)
-                                    }
+                                    viewModel.selectGroup(group)
+                                    viewModel.fetchGroupMembers(db, group.id)
+                                    onGroupSelected(
+                                        group.id,
+                                        group.name,
+                                        groupMembers,
+                                        group.createdBy
+                                    )
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
@@ -929,16 +957,28 @@ fun GroupSelectionUI(
                         Button(
                             onClick = {
                                 if (groupIdToJoin.isNotBlank()) {
-                                    joinGroup(db, groupIdToJoin, userId) { success ->
+                                    viewModel.joinGroup(db, groupIdToJoin, userId) { success ->
                                         if (success) {
-                                            Toast.makeText(context, "Successfully joined group!", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(
+                                                context,
+                                                "Successfully joined group!",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                             showGroupDialog = false
                                         } else {
-                                            Toast.makeText(context, "Failed to join group. Check the group ID.", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(
+                                                context,
+                                                "Failed to join group. Check the group ID.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         }
                                     }
                                 } else {
-                                    Toast.makeText(context, "Please enter a group ID.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Please enter a group ID.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -962,8 +1002,20 @@ fun GroupSelectionUI(
                 title = { Text("Group Details") },
                 text = {
                     Column {
+                        // Group ID
                         Text("Group ID: ${selectedGroup?.id ?: "Unknown"}", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(0.5.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Created By
+                        Text("Created By: ${creatorUsername}", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Creation Time
+                        val creationTime = selectedGroup?.timestamp?.toDate()?.toString() ?: "Unknown"
+                        Text("Creation Time: $creationTime", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Members
                         Text("Members:", fontWeight = FontWeight.Bold)
                         groupMembers.forEach { member ->
                             Text("- $member")
@@ -971,8 +1023,33 @@ fun GroupSelectionUI(
                     }
                 },
                 confirmButton = {
-                    Button(onClick = { showMembersDialog = false }) {
-                        Text("Close")
+                    Row {
+                        // Invite Friends Button
+                        Button(
+                            onClick = {
+                                val groupId = selectedGroup?.id ?: ""
+                                if (groupId.isNotEmpty()) {
+                                    coroutineScope.launch {
+                                        val invitationLink = generateInvitationLink(groupId, userId)
+                                        shareInvitationLink(context, invitationLink, groupId)
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .wrapContentWidth()
+                        ) {
+                            Text("Invite Friends")
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Close Button
+                        Button(
+                            onClick = { showMembersDialog = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Close")
+                        }
                     }
                 }
             )
@@ -980,32 +1057,6 @@ fun GroupSelectionUI(
     }
 }
 
-
-
-
-
-suspend fun generateInvitationLink(groupId: String, inviterId: String): String {
-    val dynamicLink = Firebase.dynamicLinks.shortLinkAsync {
-        link = Uri.parse("https://smartsplit.page.link/invite?groupId=$groupId&inviterId=$inviterId")
-        domainUriPrefix = "https://smartsplit.page.link"
-        androidParameters("com.example.smartsplit") {
-            minimumVersion = 1
-        }
-    }.await()
-
-    return dynamicLink.shortLink.toString()
-}
-
-fun shareInvitationLink(context: Context, invitationLink: String, groupId: String) {
-    val sendIntent = Intent().apply {
-        action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_TEXT, "Join my group! Click the link: $invitationLink or enter the group ID: $groupId")
-        type = "text/plain"
-    }
-
-    val shareIntent = Intent.createChooser(sendIntent, "Share Invitation Link")
-    context.startActivity(shareIntent)
-}
 
 @Composable
 fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
@@ -1044,7 +1095,9 @@ fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
                     text = timestampText,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
-                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(top = 4.dp)
                 )
             }
         }

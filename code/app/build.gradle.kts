@@ -112,6 +112,7 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.firebase:firebase-dynamic-links-ktx")
     implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
 
     kapt("androidx.room:room-compiler:2.6.1")
 

@@ -59,14 +59,7 @@ class ReceiptProcessingActivity : ComponentActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         setContent {
-            ReceiptProcessingScreen(
-                onPricesExtracted = { extractedItems, totalPrice ->
-                    // You can now handle the extracted items and totalPrice here
-                    // For example, log them or pass them to another screen
-                    Log.d("ReceiptProcessing", "Extracted Items: $extractedItems")
-                    Log.d("ReceiptProcessing", "Total Price: $totalPrice")
-                }
-            )
+            ReceiptProcessingScreen()
         }
     }
 
@@ -77,9 +70,7 @@ class ReceiptProcessingActivity : ComponentActivity() {
 }
 
 @Composable
-fun ReceiptProcessingScreen(
-    onPricesExtracted: (List<String>, Double) -> Unit
-) {
+fun ReceiptProcessingScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -245,7 +236,7 @@ fun sendTextToApi(context: Context, extractedText: String, onPricesExtracted: (L
                 put("role", "system")
                 put("content", """
                 You are an AI that extracts itemized prices from receipts and returns JSON. 
-                Respond ONLY with a JSON object, ONLY if there is text to parse otherwise return "No prices detected", following this format, fix any spelling mistakes:
+                Respond ONLY with a JSON object, following this format, fix any spelling mistakes:
                 
                 {
                     "items": [
@@ -322,12 +313,6 @@ fun sendTextToApi(context: Context, extractedText: String, onPricesExtracted: (L
 @Composable
 fun ReceiptProcessingPreview() {
     SmartSplitTheme {
-        ReceiptProcessingScreen(
-            onPricesExtracted = { extractedItems, totalPrice ->
-
-                Log.d("ReceiptProcessing", "Extracted Items: $extractedItems")
-                Log.d("ReceiptProcessing", "Total Price: $totalPrice")
-            }
-        )
+        ReceiptProcessingScreen()
     }
 }
