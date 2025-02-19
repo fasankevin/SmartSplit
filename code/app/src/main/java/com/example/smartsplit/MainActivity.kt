@@ -2,15 +2,11 @@ package com.example.smartsplit
 
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.Date
 
 import android.content.Context
-import com.google.firebase.dynamiclinks.ktx.androidParameters
 import com.google.firebase.dynamiclinks.ktx.dynamicLinks
-import com.google.firebase.dynamiclinks.ktx.shortLinkAsync
 import com.google.firebase.ktx.Firebase
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -31,7 +27,6 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material.icons.Icons
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -46,21 +41,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.sp
 import com.example.smartsplit.models.ChatMessage
-import com.example.smartsplit.models.Group
-import com.example.smartsplit.utils.joinGroup
-import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import kotlinx.coroutines.tasks.await
 import com.google.firebase.Timestamp
-import com.google.android.gms.tasks.Tasks
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smartsplit.models.GroupSelectionViewModel
 import com.example.smartsplit.models.generateInvitationLink
@@ -172,11 +159,6 @@ fun MainScreen(
     val context = LocalContext.current
 
     // Callback to handle group selection and pass group members
-    val onGroupSelected: (String, String, List<String>) -> Unit = { groupId, groupName, groupMembers ->
-        selectedGroupId = groupId
-        selectedGroupName = groupName
-        selectedGroupMembers = groupMembers
-    }
 
     // Launcher for ReceiptProcessingActivity
     val resultLauncher = rememberLauncherForActivityResult(
@@ -211,12 +193,7 @@ fun MainScreen(
                         context = context,
                         db = db,
                         userId = userId,
-                        viewModel = viewModel,  // Pass the ViewModel
-                        onGroupSelected = { groupId, groupName, groupMembers, createdBy->
-                            viewModel.selectGroup(Group(
-                                groupId, groupName, Timestamp.now(), createdBy ))
-                            viewModel.fetchGroupMembers(db, groupId)
-                        }
+                        viewModel = viewModel  // Pass the ViewModel
                     )
                     "BillSplitter" -> {
                         val groupMembers by viewModel.groupMembers.collectAsState()
@@ -425,8 +402,7 @@ fun ChatScreen(
     context: Context,
     db: FirebaseFirestore,
     userId: String,
-    viewModel: GroupSelectionViewModel = viewModel(),
-    onGroupSelected: (String, String, List<String>, String) -> Unit
+    viewModel: GroupSelectionViewModel = viewModel()
 ) {
     // State from the ViewModel
     val selectedGroup by viewModel.selectedGroup.collectAsState()
@@ -511,11 +487,6 @@ fun ChatScreen(
         GroupSelectionUI(
             db = db,
             userId = userId,
-            onGroupSelected = { id, name, members, createdBy ->
-                viewModel.selectGroup(Group(id, name, Timestamp.now(), createdBy))
-                viewModel.fetchGroupMembers(db, id)
-                onGroupSelected(id, name, members, createdBy)
-            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 0.1.dp)
@@ -795,46 +766,10 @@ fun BillSplitterScreen(
 }
 
 
-
-
-
-fun fetchGroupMembers(groupId: String, db: FirebaseFirestore, onMembersFetched: (List<String>) -> Unit) {
-    db.collection("groups").document(groupId).get()
-        .addOnSuccessListener { document ->
-            val memberIds = document.get("members") as? List<String> ?: emptyList()
-
-            if (memberIds.isEmpty()) {
-                onMembersFetched(emptyList())
-                return@addOnSuccessListener
-            }
-
-            val userNames = mutableListOf<String>()
-            val tasks = memberIds.map { userId ->
-                db.collection("users").document(userId).get()
-                    .addOnSuccessListener { userDoc ->
-                        val username = userDoc.getString("username") ?: userId // Fallback to userId
-                        userNames.add(username)
-
-                        // When all usernames are fetched, update UI
-                        if (userNames.size == memberIds.size) {
-                            onMembersFetched(userNames)
-                        }
-                    }
-            }
-        }
-        .addOnFailureListener {
-            onMembersFetched(emptyList()) // Handle failure
-        }
-}
-
-
-
-
 @Composable
 fun GroupSelectionUI(
     db: FirebaseFirestore,
     userId: String,
-    onGroupSelected: (String, String, List<String>, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Get the ViewModel instance using the viewModel() function
@@ -845,7 +780,6 @@ fun GroupSelectionUI(
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedGroup by viewModel.selectedGroup.collectAsState()
     val groupMembers by viewModel.groupMembers.collectAsState()
-    val creatorUsername by viewModel.creatorUsername.collectAsState()
 
     var showGroupDialog by remember { mutableStateOf(false) }
     var showMembersDialog by remember { mutableStateOf(false) }
@@ -879,7 +813,7 @@ fun GroupSelectionUI(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Group Details Button moved here
+        // Group Details Button
         Button(
             onClick = { showMembersDialog = true },
             enabled = selectedGroup != null,
@@ -912,14 +846,8 @@ fun GroupSelectionUI(
                         userGroups.forEach { group ->
                             Button(
                                 onClick = {
-                                    viewModel.selectGroup(group)
-                                    viewModel.fetchGroupMembers(db, group.id)
-                                    onGroupSelected(
-                                        group.id,
-                                        group.name,
-                                        groupMembers,
-                                        group.createdBy
-                                    )
+                                    viewModel.selectGroup(group) // Update selected group in ViewModel
+                                    viewModel.fetchGroupMembers(db, group.id) // Fetch members for the selected group
                                     showGroupDialog = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
@@ -1007,7 +935,7 @@ fun GroupSelectionUI(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Created By
-                        Text("Created By: ${creatorUsername}", fontWeight = FontWeight.Bold)
+                        Text("Created By: ${selectedGroup?.createdBy}", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Creation Time

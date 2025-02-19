@@ -27,7 +27,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="OCR IMPLEMENTED">
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/CreateGroupActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/CreateGroupActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/models/GroupSelectionViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/models/GroupSelectionViewModel.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

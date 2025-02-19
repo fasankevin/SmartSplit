@@ -30,9 +30,6 @@ class GroupSelectionViewModel : ViewModel() {
     private val _groupMembers = MutableStateFlow<List<String>>(emptyList())
     val groupMembers: StateFlow<List<String>> get() = _groupMembers
 
-    private val _creatorUsername = MutableStateFlow<String>("")
-    val creatorUsername: StateFlow<String> = _creatorUsername
-
     fun fetchGroups(db: FirebaseFirestore, userId: String) {
         viewModelScope.launch {
             db.collection("groups")
@@ -45,17 +42,18 @@ class GroupSelectionViewModel : ViewModel() {
                             id = document.id,
                             name = document.getString("name") ?: "Unnamed Group",
                             timestamp = document.getTimestamp("timestamp"),
-                            createdBy =  document.getString("createdBy") ?: "Unknown User"
+                            createdBy = document.getString("createdBy") ?: "Unknown User" // Initialize with creatorUserId
                         )
                     }
+
                     // Fetch the creator's username for each group
                     _userGroups.value.forEach { group ->
-                        fetchCreatorUsername(db, group.createdBy)
+                        fetchCreatorUsername(db, group.createdBy, group.id) // Pass group ID
                     }
 
                     if (_selectedGroup.value == null && _userGroups.value.isNotEmpty()) {
                         val mostRecentGroup = _userGroups.value.first()
-                        _selectedGroup.value = mostRecentGroup
+                        selectGroup(mostRecentGroup)
                         fetchGroupMembers(db, mostRecentGroup.id)
                     }
 
@@ -67,16 +65,30 @@ class GroupSelectionViewModel : ViewModel() {
         }
     }
 
-    private fun fetchCreatorUsername(db: FirebaseFirestore, creatorUserId: String) {
+    private fun fetchCreatorUsername(db: FirebaseFirestore, creatorUserId: String, groupId: String) {
         db.collection("users")
             .document(creatorUserId)
             .get()
             .addOnSuccessListener { userDocument ->
                 val username = userDocument.getString("username") ?: "Unknown User"
-                _creatorUsername.value = username
+                // Update the creator's username in the corresponding group
+                _userGroups.value = _userGroups.value.map { group ->
+                    if (group.id == groupId) {
+                        group.copy(createdBy = username) // Update the createdBy field
+                    } else {
+                        group
+                    }
+                }
             }
             .addOnFailureListener {
-                _creatorUsername.value = "Unknown User"
+                // If fetching fails, set the creator's username to "Unknown User"
+                _userGroups.value = _userGroups.value.map { group ->
+                    if (group.id == groupId) {
+                        group.copy(createdBy = "Unknown User")
+                    } else {
+                        group
+                    }
+                }
             }
     }
 
