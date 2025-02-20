@@ -153,14 +153,12 @@ fun RegisterScreen(auth: FirebaseAuth, db: FirebaseFirestore, groupId: String, m
     }
 }
 
-fun addUserToGroup(db: FirebaseFirestore, groupId: String, userId: String) {
-    val groupRef = db.collection("groups").document(groupId)
+fun addUserToGroup(db: FirebaseFirestore, groupId: String?, userId: String) {
+    val groupRef = groupId?.let { db.collection("groups").document(it) }
 
-    groupRef.update("members", FieldValue.arrayUnion(userId))
-        .addOnSuccessListener {
-            Log.d("Firestore", "User added to group successfully")
-        }
-        .addOnFailureListener { e ->
-            Log.e("Firestore", "Error adding user to group", e)
-        }
+    groupRef?.update("members", FieldValue.arrayUnion(userId))?.addOnSuccessListener {
+        Log.d("Firestore", "User added to group successfully")
+    }?.addOnFailureListener { e ->
+        Log.e("Firestore", "Error adding user to group", e)
+    }
 }

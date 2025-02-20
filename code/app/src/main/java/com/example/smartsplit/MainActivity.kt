@@ -7,6 +7,8 @@ import android.content.Context
 import com.google.firebase.dynamiclinks.ktx.dynamicLinks
 import com.google.firebase.ktx.Firebase
 import android.content.Intent
+import android.media.Image
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -27,6 +29,7 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material.icons.Icons
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +41,7 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -49,6 +53,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.rememberAsyncImagePainter
 import com.example.smartsplit.models.GroupSelectionViewModel
 import com.example.smartsplit.models.generateInvitationLink
 import com.example.smartsplit.models.shareInvitationLink
@@ -81,7 +86,8 @@ class MainActivity : ComponentActivity() {
                     groupId = deepLink.getQueryParameter("groupId") ?: ""
                     inviterId = deepLink.getQueryParameter("inviterId") ?: ""
                     val currentUser = FirebaseAuth.getInstance().currentUser
-                    if (currentUser != null && groupId.isNotEmpty()) {
+                    if (currentUser != null && !groupId.isNullOrEmpty()) {
+                        Log.d("groupIdAtLogin", groupId)
                         addUserToGroup(db, groupId, currentUser.uid)
                     } else {
                         val intent = Intent(this, RegisterActivity::class.java).apply {
@@ -118,12 +124,15 @@ class MainActivity : ComponentActivity() {
             val intent = intent
             val extractedPrices = intent.getStringArrayListExtra("extractedPrices") ?: arrayListOf()
             val extractedTotal = intent.getDoubleExtra("totalAmount", 0.0)
+            val capturedImageUriString = intent.getStringExtra("capturedImageUri")
+            val capturedImageUri = capturedImageUriString?.let { Uri.parse(it) }
 
             MainScreen(
                 db = db,
                 userId = userId,
                 extractedPrices = extractedPrices,
-                extractedTotal = extractedTotal
+                extractedTotal = extractedTotal,
+                capturedImageUri = capturedImageUri
             )
         }
     }
@@ -136,12 +145,6 @@ class MainActivity : ComponentActivity() {
         startActivity(intent)
         finish()
     }
-
-    fun onPricesExtracted(extractedItems: List<String>, totalPrice: Double) {
-        itemizedDetails = extractedItems // Set the extracted items
-        totalAmount = totalPrice // Set the extracted total price
-        selectedScreen = "BillSplitter" // Switch to BillSplitter screen
-    }
 }
 
 @Composable
@@ -150,15 +153,11 @@ fun MainScreen(
     userId: String,
     extractedPrices: List<String>,
     extractedTotal: Double,
+    capturedImageUri: Uri?,
     viewModel: GroupSelectionViewModel = viewModel()
 ) {
     var selectedScreen by remember { mutableStateOf("Chat") }
-    var selectedGroupMembers by remember { mutableStateOf<List<String>>(emptyList()) }
-    var selectedGroupId by rememberSaveable { mutableStateOf("") }
-    var selectedGroupName by remember { mutableStateOf("") }
     val context = LocalContext.current
-
-    // Callback to handle group selection and pass group members
 
     // Launcher for ReceiptProcessingActivity
     val resultLauncher = rememberLauncherForActivityResult(
@@ -198,9 +197,13 @@ fun MainScreen(
                     "BillSplitter" -> {
                         val groupMembers by viewModel.groupMembers.collectAsState()
                         BillSplitterScreen(
+                            userId = userId,
                             itemizedDetails = extractedPrices,
                             totalAmount = extractedTotal,
-                            groupMembers = groupMembers  // Use group members from ViewModel
+                            groupMembers = groupMembers,  // Use group members from ViewModel,
+                            capturedImageUri = capturedImageUri,
+                            db = db,
+                            viewModel = viewModel
                         )
                     }
                     "Camera" -> {
@@ -437,6 +440,10 @@ fun ChatScreen(
                         val senderId = document.getString("senderId") ?: return@mapNotNull null
                         val messageText = document.getString("message") ?: return@mapNotNull null
                         val timestamp = document.getTimestamp("timestamp") ?: Timestamp.now()
+                        val type = document.getString("type") ?: "text"
+                        val receiptImageUrl = document.getString("receiptImageUrl")
+                        val itemizedDetails = document.get("itemizedDetails") as? List<String>
+                        val amountsAssigned = document.get("amountsAssigned") as? Map<String, Double>
 
                         ChatMessage(
                             id = document.id,
@@ -444,7 +451,11 @@ fun ChatScreen(
                             senderName = "Loading...", // Placeholder until user data is fetched
                             message = messageText,
                             timestamp = timestamp,
-                            groupId = groupId
+                            groupId = groupId,
+                            type = type,
+                            receiptImageUrl = receiptImageUrl,
+                            itemizedDetails = itemizedDetails,
+                            amountsAssigned = amountsAssigned
                         )
                     }
 
@@ -468,6 +479,7 @@ fun ChatScreen(
             listenerRegistration.remove()
         }
     }
+
 
     // Automatically scroll to the bottom when messages update
     LaunchedEffect(chatMessages.size) {
@@ -575,14 +587,21 @@ fun ChatScreen(
 
 @Composable
 fun BillSplitterScreen(
+    userId: String,
     itemizedDetails: List<String>,
     totalAmount: Double,
-    groupMembers: List<String>
+    groupMembers: List<String>,
+    capturedImageUri: Uri?,
+    db: FirebaseFirestore,
+    viewModel: GroupSelectionViewModel = viewModel()
 ) {
     var itemAssignments by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
     var dialogItem by remember { mutableStateOf<String?>(null) }
     var selectedMembersMap by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
     val amountsAssigned = remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    val selectedGroup by viewModel.selectedGroup.collectAsState()
+    var isCalculationComplete by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     // Extract cost from each item string (format "item: $cost")
     val itemCosts = remember(itemizedDetails) {
@@ -598,7 +617,6 @@ fun BillSplitterScreen(
         Log.d("ItemCosts", "Item Costs: $costs") // Log the full item costs map
         costs
     }
-
 
     LazyColumn(
         modifier = Modifier
@@ -630,6 +648,7 @@ fun BillSplitterScreen(
                         modifier = Modifier.width(120.dp)
                     ) {
                         Text(if (selectedMembers.isEmpty()) "Assign to" else selectedMembers.joinToString(", "))
+                        isCalculationComplete = false // Reset calculation state
                     }
                 }
             }
@@ -719,6 +738,12 @@ fun BillSplitterScreen(
         item {
             Button(
                 onClick = {
+                    // Check if an image is captured
+                    if (capturedImageUri == null) {
+                        Toast.makeText(context, "Please capture an image of the receipt first.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
                     val userAmounts = mutableMapOf<String, Double>()
 
                     // Log the itemAssignments before calculation
@@ -748,6 +773,7 @@ fun BillSplitterScreen(
                     Log.d("AmountsAssigned", "User amounts: $userAmounts")
 
                     amountsAssigned.value = userAmounts
+                    isCalculationComplete = true // Mark calculation as complte
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -761,6 +787,86 @@ fun BillSplitterScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = 16.dp)
             )
+        }
+
+        item{
+            Button(
+                onClick = {
+
+
+                    // Check if calculation is complete
+                    if (!isCalculationComplete) {
+                        Toast.makeText(context, "Please complete the calculation first.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    // Check if itemized details are empty
+                    if (itemizedDetails.isEmpty()) {
+                        Toast.makeText(context, "No itemized details found. Please capture the receipt again.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    // Check if amounts assigned are empty
+                    if (amountsAssigned.value.isEmpty()) {
+                        Toast.makeText(context, "No amounts assigned. Please complete the calculation first.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    // If all conditions are met, proceed with storing the receipt
+                    selectedGroup?.let { Log.d("groupId", it.id) }
+                    Log.d("receiptImageUrl", capturedImageUri.toString())
+                    Log.d("itemizedDetails", itemizedDetails.toString())
+                    Log.d("amountsAssigned", amountsAssigned.toString())
+                    Log.d("timestamp", Timestamp.now().toString())
+                    if (capturedImageUri != null) {
+                        uploadReceiptImageToFirebase(
+                            context = context,
+                            imageUri = capturedImageUri,
+                            onSuccess = { imageUrl ->
+                                storeReceiptDetailsInFirestore(
+                                    db = db,
+                                    groupId = selectedGroup?.id ?: "Unknown",
+                                    receiptImageUrl = imageUrl,
+                                    itemizedDetails = itemizedDetails,
+                                    amountsAssigned = amountsAssigned.value,
+                                    onSuccess = {
+                                        // Now send the receipt as a chat message
+                                        sendReceiptMessage(
+                                            db = db,
+                                            groupId = selectedGroup?.id ?: "Unknown",
+                                            userId = userId,
+                                            receiptImageUrl = imageUrl,
+                                            itemizedDetails = itemizedDetails,
+                                            amountsAssigned = amountsAssigned.value,
+                                            onSuccess = {
+                                                Toast.makeText(context, "Receipt stored and shared successfully!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            onFailure = { exception ->
+                                                Toast.makeText(context, "Failed to send receipt message: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        )
+                                    },
+                                    onFailure = { exception ->
+                                        Toast.makeText(context, "Failed to store receipt: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            onFailure = { exception ->
+                                Toast.makeText(context, "Failed to upload image: ${exception.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = isCalculationComplete, // Enable button only if calculation is complete
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCalculationComplete) Color(0xFF2A4174) else Color.Gray,
+                    contentColor = Color.White
+            )
+
+            ) {
+                Text("Store Receipt")
+            }
         }
     }
 }
@@ -990,10 +1096,14 @@ fun GroupSelectionUI(
 
 @Composable
 fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
-    val timestampText = message.timestamp?.let {
+
+
+    Log.d("MessageBubble", "Rendering message: $message")
+    val timestampText = message.timestamp.let {
         val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
         sdf.format(it.toDate()) // Convert Firebase Timestamp to Date
     } ?: ""
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isCurrentUser) Alignment.End else Alignment.Start
@@ -1015,10 +1125,63 @@ fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
             Column(
                 modifier = Modifier.padding(8.dp)
             ) {
-                Text(
-                    text = message.message,
-                    color = Color.White
-                )
+                // Check if the message is a receipt message
+                if (message.type == "receipt") {
+                    // Display receipt image
+                    message.receiptImageUrl?.let { imageUrl ->
+                        Image(
+                            painter = rememberAsyncImagePainter(imageUrl),
+                            contentDescription = "Receipt Image",
+                            modifier = Modifier
+                                .size(200.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Display itemized details
+                    if (!message.itemizedDetails.isNullOrEmpty()) {
+                        Text(
+                            text = "Itemized Details:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        message.itemizedDetails.forEach { item ->
+                            Text(
+                                text = item,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Display amounts assigned
+                    if (!message.amountsAssigned.isNullOrEmpty()) {
+                        Text(
+                            text = "Amounts Owed:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        message.amountsAssigned.forEach { (member, amount) ->
+                            Text(
+                                text = "$member: €${"%.2f".format(amount)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // Display regular text message
+                    Text(
+                        text = message.message,
+                        color = Color.White
+                    )
+                }
 
                 // Display timestamp below message
                 Text(

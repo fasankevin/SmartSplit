@@ -47,6 +47,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.rememberAsyncImagePainter
 
 import com.example.smartsplit.ui.theme.SmartSplitTheme
+import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.storage
 
 
 class ReceiptProcessingActivity : ComponentActivity() {
@@ -85,6 +89,10 @@ fun ReceiptProcessingScreen() {
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted -> hasCameraPermission = granted }
     )
+
+
+
+
 
     LaunchedEffect(Unit) {
         permissionLauncher.launch(android.Manifest.permission.CAMERA)
@@ -186,6 +194,7 @@ fun ReceiptProcessingScreen() {
                             val intent = Intent(context, MainActivity::class.java).apply {
                                 putStringArrayListExtra("extractedPrices", ArrayList(extractedPrices))
                                 putExtra("totalAmount", totalAmount)
+                                putExtra("capturedImageUri", capturedImageUri.toString())
                                 putExtra("openBillSplitter", true)
                             }
                             context.startActivity(intent)
@@ -236,7 +245,7 @@ fun sendTextToApi(context: Context, extractedText: String, onPricesExtracted: (L
                 put("role", "system")
                 put("content", """
                 You are an AI that extracts itemized prices from receipts and returns JSON. 
-                Respond ONLY with a JSON object, ONLY if there is text to parse otherwise return "No prices detected", following this format, fix any spelling mistakes:
+                Respond ONLY with a JSON object, following this format, fix any spelling mistakes:
                 
                 {
                     "items": [
@@ -307,7 +316,92 @@ fun sendTextToApi(context: Context, extractedText: String, onPricesExtracted: (L
     Volley.newRequestQueue(context).add(request)
 }
 
+// Utility function to upload receipt image to Firebase Storage
+fun uploadReceiptImageToFirebase(
+    context: Context,
+    imageUri: Uri,
+    onSuccess: (String) -> Unit, // Callback for successful upload
+    onFailure: (Exception) -> Unit // Callback for failed upload
+) {
+    val storage = Firebase.storage
+    val storageRef = storage.reference
+    val receiptRef = storageRef.child("receipts/${System.currentTimeMillis()}.jpg")
 
+    val uploadTask = receiptRef.putFile(imageUri)
+    uploadTask.addOnSuccessListener {
+        // Get the download URL
+        receiptRef.downloadUrl.addOnSuccessListener { uri ->
+            onSuccess(uri.toString()) // Return the download URL
+        }.addOnFailureListener { exception ->
+            onFailure(exception) // Handle failure to get download URL
+        }
+    }.addOnFailureListener { exception ->
+        onFailure(exception) // Handle failure to upload image
+    }
+}
+
+fun storeReceiptDetailsInFirestore(
+    db: FirebaseFirestore,
+    groupId: String,
+    receiptImageUrl: String,
+    itemizedDetails: List<String>,
+    amountsAssigned: Map<String, Double>,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    val receiptData = hashMapOf(
+        "groupId" to groupId,
+        "receiptImageUrl" to receiptImageUrl,
+        "itemizedDetails" to itemizedDetails,
+        "amountsAssigned" to amountsAssigned,
+        "timestamp" to Timestamp.now()
+    )
+    Log.i("groupId", groupId)
+    Log.i("receiptImageUrl", receiptImageUrl)
+    Log.i("itemizedDetails", itemizedDetails.toString())
+    Log.i("amountsAssigned", amountsAssigned.toString())
+    Log.i("timestamp", Timestamp.now().toString())
+
+    db.collection("receipts")
+        .add(receiptData)
+        .addOnSuccessListener {
+            onSuccess()
+        }
+        .addOnFailureListener { exception ->
+            onFailure(exception)
+        }
+}
+
+fun sendReceiptMessage(
+    db: FirebaseFirestore,
+    groupId: String,
+    userId: String,
+    receiptImageUrl: String,
+    itemizedDetails: List<String>,
+    amountsAssigned: Map<String, Double>,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    val messageData = hashMapOf(
+        "senderId" to userId,
+        "groupId" to groupId,
+        "message" to "Receipt shared",
+        "receiptImageUrl" to receiptImageUrl,
+        "itemizedDetails" to itemizedDetails,
+        "amountsAssigned" to amountsAssigned,
+        "timestamp" to Timestamp.now(),
+        "type" to "receipt" // Add a type to distinguish receipt messages
+    )
+
+    db.collection("messages")
+        .add(messageData)
+        .addOnSuccessListener {
+            onSuccess()
+        }
+        .addOnFailureListener { exception ->
+            onFailure(exception)
+        }
+}
 
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
 @Composable
