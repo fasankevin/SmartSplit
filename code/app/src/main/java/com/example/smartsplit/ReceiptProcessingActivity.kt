@@ -245,7 +245,8 @@ fun sendTextToApi(context: Context, extractedText: String, onPricesExtracted: (L
                 put("role", "system")
                 put("content", """
                 You are an AI that extracts itemized prices from receipts and returns JSON. 
-                Respond ONLY with a JSON object, ONLY if there is text to parse otherwise return "No prices detected", following this format, fix any spelling mistakes:
+                Respond ONLY with a JSON object, ONLY if there is text to parse otherwise return "No prices detected", following this format, 
+                fix any spelling mistakes, make sure the first letter of each word is capitalised and if there are any spaces between a word remove them:
                 
                 {
                     "items": [

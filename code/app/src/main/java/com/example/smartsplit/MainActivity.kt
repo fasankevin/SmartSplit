@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
     private fun setupMainScreen() {
         setContent {
             val intent = intent
-            val extractedPrices = intent.getStringArrayListExtra("extractedPrices") ?: arrayListOf()
+            val extractedPrices = remember { mutableStateOf(intent.getStringArrayListExtra("extractedPrices")?.toList() ?: emptyList()) }
             val extractedTotal = intent.getDoubleExtra("totalAmount", 0.0)
             val capturedImageUriString = intent.getStringExtra("capturedImageUri")
             val capturedImageUri = capturedImageUriString?.let { Uri.parse(it) }
@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     db: FirebaseFirestore,
     userId: String,
-    extractedPrices: List<String>,
+    extractedPrices: MutableState<List<String>>,
     extractedTotal: Double,
     capturedImageUri: Uri?,
     viewModel: GroupSelectionViewModel = viewModel()
@@ -588,7 +588,7 @@ fun ChatScreen(
 @Composable
 fun BillSplitterScreen(
     userId: String,
-    itemizedDetails: List<String>,
+    itemizedDetails: MutableState<List<String>>,
     totalAmount: Double,
     groupMembers: List<String>,
     capturedImageUri: Uri?,
@@ -603,9 +603,14 @@ fun BillSplitterScreen(
     var isCalculationComplete by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
+    // State for editing an item
+    var editItem by remember { mutableStateOf<String?>(null) }
+    var editedItemName by remember { mutableStateOf("") }
+    var editedItemCost by remember { mutableStateOf("") }
+
     // Extract cost from each item string (format "item: $cost")
-    val itemCosts = remember(itemizedDetails) {
-        val costs = itemizedDetails.associate { item ->
+    val itemCosts = remember(itemizedDetails.value) {
+        val costs = itemizedDetails.value.associate { item ->
             val parts = item.split(":")
             val costString = parts.getOrNull(1)?.trim()?.removePrefix("€")?.toDoubleOrNull()
 
@@ -618,6 +623,53 @@ fun BillSplitterScreen(
         costs
     }
 
+    // Function to update itemizedDetails
+    fun updateItemizedDetails(oldItem: String, newItem: String) {
+        val updatedList = itemizedDetails.value.toMutableList()
+        val index = updatedList.indexOf(oldItem)
+        if (index != -1) {
+            updatedList[index] = newItem
+            itemizedDetails.value = updatedList
+        }
+    }
+
+    // Edit Dialog
+    if (editItem != null) {
+        AlertDialog(
+            onDismissRequest = { editItem = null },
+            title = { Text("Edit Item") },
+            text = {
+                Column {
+                    TextField(
+                        value = editedItemName,
+                        onValueChange = { editedItemName = it },
+                        label = { Text("Item Name") }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = editedItemCost,
+                        onValueChange = { editedItemCost = it },
+                        label = { Text("Item Cost") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val newItem = "$editedItemName: €$editedItemCost"
+                    updateItemizedDetails(editItem!!, newItem)
+                    editItem = null
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { editItem = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -628,7 +680,7 @@ fun BillSplitterScreen(
             Text("Bill Splitter", style = MaterialTheme.typography.headlineMedium)
         }
 
-        items(itemizedDetails) { item ->
+        items(itemizedDetails.value) { item ->
             val selectedMembers = selectedMembersMap[item] ?: emptyList()
 
             Card(
@@ -643,12 +695,30 @@ fun BillSplitterScreen(
                 ) {
                     Text(item, modifier = Modifier.weight(1f))
 
+                    // Edit Button
                     Button(
-                        onClick = { dialogItem = item },
+                        onClick = {
+                            editItem = item
+                            val parts = item.split(":")
+                            editedItemName = parts[0].trim()
+                            editedItemCost = parts.getOrNull(1)?.trim()?.removePrefix("€") ?: ""
+                        },
+                        modifier = Modifier.width(80.dp)
+                    ) {
+                        Text("Edit")
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Assign Button
+                    Button(
+                        onClick = { dialogItem = item
+                            isCalculationComplete = false // Reset calculation state
+                                  },
                         modifier = Modifier.width(120.dp)
                     ) {
                         Text(if (selectedMembers.isEmpty()) "Assign to" else selectedMembers.joinToString(", "))
-                        isCalculationComplete = false // Reset calculation state
+
                     }
                 }
             }
@@ -750,7 +820,7 @@ fun BillSplitterScreen(
                     Log.d("ItemAssignments", "Item Assignments: $itemAssignments")
 
                     // Calculate each person's share for each item
-                    itemizedDetails.forEach { item ->
+                    itemizedDetails.value.forEach { item ->
                         val cost = itemCosts[item] ?: 0.0
                         val assignedMembers = itemAssignments[item] ?: emptyList()
 
@@ -773,7 +843,7 @@ fun BillSplitterScreen(
                     Log.d("AmountsAssigned", "User amounts: $userAmounts")
 
                     amountsAssigned.value = userAmounts
-                    isCalculationComplete = true // Mark calculation as complte
+                    isCalculationComplete = true // Mark calculation as complete
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -789,11 +859,9 @@ fun BillSplitterScreen(
             )
         }
 
-        item{
+        item {
             Button(
                 onClick = {
-
-
                     // Check if calculation is complete
                     if (!isCalculationComplete) {
                         Toast.makeText(context, "Please complete the calculation first.", Toast.LENGTH_SHORT).show()
@@ -801,7 +869,7 @@ fun BillSplitterScreen(
                     }
 
                     // Check if itemized details are empty
-                    if (itemizedDetails.isEmpty()) {
+                    if (itemizedDetails.value.isEmpty()) {
                         Toast.makeText(context, "No itemized details found. Please capture the receipt again.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
@@ -827,7 +895,7 @@ fun BillSplitterScreen(
                                     db = db,
                                     groupId = selectedGroup?.id ?: "Unknown",
                                     receiptImageUrl = imageUrl,
-                                    itemizedDetails = itemizedDetails,
+                                    itemizedDetails = itemizedDetails.value,
                                     amountsAssigned = amountsAssigned.value,
                                     onSuccess = {
                                         // Now send the receipt as a chat message
@@ -836,7 +904,7 @@ fun BillSplitterScreen(
                                             groupId = selectedGroup?.id ?: "Unknown",
                                             userId = userId,
                                             receiptImageUrl = imageUrl,
-                                            itemizedDetails = itemizedDetails,
+                                            itemizedDetails = itemizedDetails.value,
                                             amountsAssigned = amountsAssigned.value,
                                             onSuccess = {
                                                 Toast.makeText(context, "Receipt stored and shared successfully!", Toast.LENGTH_SHORT).show()
@@ -862,8 +930,7 @@ fun BillSplitterScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isCalculationComplete) Color(0xFF2A4174) else Color.Gray,
                     contentColor = Color.White
-            )
-
+                )
             ) {
                 Text("Store Receipt")
             }
