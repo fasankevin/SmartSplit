@@ -26,14 +26,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="OCR IMPLEMENTED">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Login.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/ReceiptProcessingActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/ReceiptProcessingActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/Register.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/models/ChatMessage.kt" beforeDir="false" afterPath="$PROJECT_DIR$/code/app/src/main/java/com/example/smartsplit/models/ChatMessage.kt" afterDir="false" />
-    </list>
+    <list default="true" id="38e27541-d65b-4416-be5c-50c2ad4e837f" name="Changes" comment="OCR IMPLEMENTED" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
