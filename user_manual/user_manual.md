@@ -28,7 +28,7 @@ This guide walks you through installation, usage, and troubleshooting while high
 2. **Sign In:** If you already have an account, enter your credentials.
 3. **Forgot Password?** Tap **Reset Password** to receive recovery instructions.
 
-![Login](Screenshot3.png)![SignUp](Screenshot4.png)
+![Login](Screenshots/Screenshot3.png)![SignUp](Screenshots/Screenshot4.png)
 ###  **Permissions**
 When prompted, grant the following permissions:
 - **Camera Access:** Required to capture receipt images.
@@ -46,7 +46,7 @@ Upon logging in, the **Home Screen** allows you to:
 
 Tap **Settings** to update your account details or app settings.
 
-![Homesreen](Screenshot5.png)
+![Homesreen](Screenshots/Screenshot5.png)
 
 💡 *Tip: Turn on notifications for reminders about pending bills.*
 
@@ -57,7 +57,7 @@ Tap **Settings** to update your account details or app settings.
 2. Ensure the receipt is flat, well-lit, and within the camera frame.
 3. The app will automatically extract item names and prices using OCR.
 
-![Receipt Capture](Screenshot6.png)
+![Receipt Capture](Screenshots/Screenshot6.png)
 
 💡 *Tip: If the text appears blurry, retake the photo with better lighting.*
 
@@ -69,7 +69,7 @@ Once the receipt is processed:
 2. **Edit Items:** Tap an item to correct spelling, adjust prices, or add missing items.
 3. **Confirm and Proceed:** After reviewing, tap **Next** to split the bill.
 
-![image](Screenshot7.png)
+![Edit](Screenshots/Screenshot7.png)
 
 💡 *Tip: Ensure the total matches the receipt before proceeding.*
 
@@ -80,7 +80,7 @@ Once the receipt is processed:
 2. **Split Evenly:** If everyone shares the bill equally, tap **Split Evenly**.
 3. **View Summary:** See how much each person owes based on their assigned items.
 
-![image](Screenshot8.png)
+![Split](Screenshots/Screenshot8.png)
 
 💡 *Tip: Use **Split by Percentage** for shared dishes.*
 
