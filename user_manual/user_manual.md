@@ -10,7 +10,6 @@
 7. [Storing and Sharing Receipts](#7-storing-and-sharing-receipts)
 8. [Group Chat Features](#8-group-chat-features)
 9. [Troubleshooting and FAQs](#9-troubleshooting-and-faqs)
-10. [Contact Support](#10-contact-support)
 
 ---
 
