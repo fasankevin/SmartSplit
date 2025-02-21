@@ -9,7 +9,7 @@
 6. [Splitting the Bill](#6-splitting-the-bill)
 7. [Storing and Sharing Receipts](#7-storing-and-sharing-receipts)
 8. [Group Chat Features](#8-group-chat-features)
-9. [Troubleshooting and FAQs](#9-troubleshooting-and-faqs)
+9. [Troubleshooting](#9-troubleshooting)
 
 ---
 
@@ -105,7 +105,7 @@ SmartSplit simplifies expense coordination:
 
 ---
 
-##  **9. Troubleshooting and FAQs**
+##  **9. Troubleshooting**
 
 ###  **OCR Fails to Extract Details:**
 - Ensure the receipt is well-lit and fully visible.
