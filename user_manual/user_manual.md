@@ -1,6 +1,6 @@
 # 📖 **SmartSplit User Manual**
 
-## 📚 **Table of Contents**
+##  **Table of Contents**
 1. [Introduction](#1-introduction)
 2. [Installation & Setup](#2-installation--setup)
 3. [Getting Started](#3-getting-started)
@@ -21,16 +21,16 @@ This guide walks you through installation, usage, and troubleshooting while high
 
 ---
 
-## 📲 **2. Installation & Setup**
+## **2. Installation & Setup**
 
 
-### 🔑 **Account Setup**
+### **Account Setup**
 1. **Sign Up:** Enter your name, email, and password.
 2. **Sign In:** If you already have an account, enter your credentials.
 3. **Forgot Password?** Tap **Reset Password** to receive recovery instructions.
 
 ![Login](Screenshot3.png)![SignUp](Screenshot4.png)
-### 📱 **Permissions**
+###  **Permissions**
 When prompted, grant the following permissions:
 - **Camera Access:** Required to capture receipt images.
 - **Notifications:** Recommended for bill updates and group alerts.
@@ -39,7 +39,7 @@ When prompted, grant the following permissions:
 
 ---
 
-## 🚀 **3. Getting Started**
+##  **3. Getting Started**
 Upon logging in, the **Home Screen** allows you to:
 - 📸 Capture a new receipt.
 - 📂 View stored receipts.
@@ -53,7 +53,7 @@ Tap **Settings** to update your account details or app settings.
 
 ---
 
-## 📸 **4. Capturing a Receipt**
+##  **4. Capturing a Receipt**
 1. From the Home Screen, tap **Capture Receipt**.
 2. Ensure the receipt is flat, well-lit, and within the camera frame.
 3. The app will automatically extract item names and prices using OCR.
@@ -64,7 +64,7 @@ Tap **Settings** to update your account details or app settings.
 
 ---
 
-## 📝 **5. Reviewing and Editing Items**
+##  **5. Reviewing and Editing Items**
 Once the receipt is processed:
 1. **View Extracted Items:** The app displays item names and prices.
 2. **Edit Items:** Tap an item to correct spelling, adjust prices, or add missing items.
@@ -76,7 +76,7 @@ Once the receipt is processed:
 
 ---
 
-## 🤝 **6. Splitting the Bill**
+##  **6. Splitting the Bill**
 1. **Assign Items:** Tap **Assign to** next to each item and select the group member responsible.
 2. **Split Evenly:** If everyone shares the bill equally, tap **Split Evenly**.
 3. **View Summary:** See how much each person owes based on their assigned items.
@@ -87,7 +87,7 @@ Once the receipt is processed:
 
 ---
 
-## 💾 **7. Storing and Sharing Receipts**
+##  **7. Storing and Sharing Receipts**
 1. Tap **Store Receipt** after splitting the bill.
 2. The app saves the receipt image and itemized breakdown.
 3. SmartSplit then shares the receipt in the associated group chat.
@@ -97,7 +97,7 @@ Once the receipt is processed:
 
 ---
 
-## 💬 **8. Group Chat Features**
+##  **8. Group Chat Features**
 SmartSplit simplifies expense coordination:
 1. **View Shared Receipts:** In group chat, chat with friends, also view previous receipts.
 2. **Real-Time Chat:** Discuss bills, clarify amounts, and confirm payments.
@@ -106,22 +106,22 @@ SmartSplit simplifies expense coordination:
 
 ---
 
-## 🛠 **9. Troubleshooting and FAQs**
+##  **9. Troubleshooting and FAQs**
 
-### 📸 **OCR Fails to Extract Details:**
+###  **OCR Fails to Extract Details:**
 - Ensure the receipt is well-lit and fully visible.
 - Crop excess background from the image.
 - Manually edit items if extraction is incomplete.
 
-### 💥 **App Crashes:**
+###  **App Crashes:**
 - Restart the app and check for updates.
 - Clear app cache in device settings.
 
-### 👥 **Group Creation Issues:**
+###  **Group Creation Issues:**
 - Group names must be UTF-8 characters under 1,500 bytes.
 - Ensure all members have internet access when joining.
 
-### 🔑 **Login Issues:**
+###  **Login Issues:**
 - Verify your internet connection.
 - Reset your password if needed.
 
