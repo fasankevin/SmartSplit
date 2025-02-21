@@ -596,7 +596,7 @@ fun BillSplitterScreen(
     viewModel: GroupSelectionViewModel = viewModel()
 ) {
     var itemAssignments by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
-    var dialogItem by remember { mutableStateOf<String?>(null) }
+    var dialogItem by remember { mutableStateOf<String?>(null) } // State for the currently selected item for assignment
     var selectedMembersMap by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
     val amountsAssigned = remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     val selectedGroup by viewModel.selectedGroup.collectAsState()
@@ -670,269 +670,272 @@ fun BillSplitterScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text("Bill Splitter", style = MaterialTheme.typography.headlineMedium)
+    // Member Assignment Dialog (moved outside LazyColumn)
+    if (dialogItem != null) {
+        var tempSelectedMembers by remember(dialogItem) {
+            mutableStateOf(selectedMembersMap[dialogItem!!] ?: emptyList())
         }
 
-        items(itemizedDetails.value) { item ->
-            val selectedMembers = selectedMembersMap[item] ?: emptyList()
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                ) {
-                    Text(item, modifier = Modifier.weight(1f))
-
-                    // Edit Button
-                    Button(
-                        onClick = {
-                            editItem = item
-                            val parts = item.split(":")
-                            editedItemName = parts[0].trim()
-                            editedItemCost = parts.getOrNull(1)?.trim()?.removePrefix("€") ?: ""
-                        },
-                        modifier = Modifier.width(80.dp)
+        AlertDialog(
+            onDismissRequest = { dialogItem = null },
+            title = { Text("Select Members for ${dialogItem!!}") },
+            text = {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                tempSelectedMembers =
+                                    if (tempSelectedMembers.size == groupMembers.size) {
+                                        emptyList()
+                                    } else {
+                                        groupMembers
+                                    }
+                            }
                     ) {
-                        Text("Edit")
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Assign Button
-                    Button(
-                        onClick = { dialogItem = item
-                            isCalculationComplete = false // Reset calculation state
-                                  },
-                        modifier = Modifier.width(120.dp)
-                    ) {
-                        Text(if (selectedMembers.isEmpty()) "Assign to" else selectedMembers.joinToString(", "))
-
-                    }
-                }
-            }
-        }
-
-        dialogItem?.let { currentItem ->
-            item {
-                var tempSelectedMembers by remember(currentItem) {
-                    mutableStateOf(selectedMembersMap[currentItem] ?: emptyList())
-                }
-
-                AlertDialog(
-                    onDismissRequest = { dialogItem = null },
-                    title = { Text("Select Members for $currentItem") },
-                    text = {
-                        Column {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        tempSelectedMembers =
-                                            if (tempSelectedMembers.size == groupMembers.size) {
-                                                emptyList()
-                                            } else {
-                                                groupMembers
-                                            }
-                                    }
-                            ) {
-                                Checkbox(
-                                    checked = tempSelectedMembers.size == groupMembers.size,
-                                    onCheckedChange = { checked ->
-                                        tempSelectedMembers = if (checked) groupMembers else emptyList()
-                                    }
-                                )
-                                Text("Assign to Everyone", modifier = Modifier.padding(start = 8.dp))
-                            }
-
-                            groupMembers.forEach { member ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            tempSelectedMembers =
-                                                if (tempSelectedMembers.contains(member)) {
-                                                    tempSelectedMembers - member
-                                                } else {
-                                                    tempSelectedMembers + member
-                                                }
-                                        }
-                                        .padding(8.dp)
-                                ) {
-                                    Checkbox(
-                                        checked = tempSelectedMembers.contains(member),
-                                        onCheckedChange = { checked ->
-                                            tempSelectedMembers = if (checked) {
-                                                tempSelectedMembers + member
-                                            } else {
-                                                tempSelectedMembers - member
-                                            }
-                                        }
-                                    )
-                                    Text(member, modifier = Modifier.padding(start = 8.dp))
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        Button(onClick = {
-                            itemAssignments = itemAssignments + (currentItem to tempSelectedMembers)
-                            selectedMembersMap = selectedMembersMap + (currentItem to tempSelectedMembers)
-                            dialogItem = null
-                        }) {
-                            Text("Done")
-                        }
-                    },
-                    dismissButton = {
-                        Button(onClick = { dialogItem = null }) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
-        }
-
-        item {
-            Button(
-                onClick = {
-                    // Check if an image is captured
-                    if (capturedImageUri == null) {
-                        Toast.makeText(context, "Please capture an image of the receipt first.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    val userAmounts = mutableMapOf<String, Double>()
-
-                    // Log the itemAssignments before calculation
-                    Log.d("ItemAssignments", "Item Assignments: $itemAssignments")
-
-                    // Calculate each person's share for each item
-                    itemizedDetails.value.forEach { item ->
-                        val cost = itemCosts[item] ?: 0.0
-                        val assignedMembers = itemAssignments[item] ?: emptyList()
-
-                        Log.d("BillSplitter", "Item: $item, Cost: $cost, Assigned Members: $assignedMembers")
-
-                        if (assignedMembers.isNotEmpty()) {
-                            // Split the item cost among assigned members
-                            val splitAmount = cost / assignedMembers.size
-                            Log.d("BillSplitter", "Split Amount for $item: $splitAmount")
-
-                            assignedMembers.forEach { member ->
-                                userAmounts[member] = (userAmounts[member] ?: 0.0) + splitAmount
-                            }
-                        } else {
-                            Log.d("BillSplitter", "No members assigned to item: $item")
-                        }
-                    }
-
-                    // Debugging log
-                    Log.d("AmountsAssigned", "User amounts: $userAmounts")
-
-                    amountsAssigned.value = userAmounts
-                    isCalculationComplete = true // Mark calculation as complete
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Calculate")
-            }
-        }
-
-        items(amountsAssigned.value.entries.toList()) { (member, amount) ->
-            Text(
-                "$member: €%.2f".format(amount),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-        }
-
-        item {
-            Button(
-                onClick = {
-                    // Check if calculation is complete
-                    if (!isCalculationComplete) {
-                        Toast.makeText(context, "Please complete the calculation first.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // Check if itemized details are empty
-                    if (itemizedDetails.value.isEmpty()) {
-                        Toast.makeText(context, "No itemized details found. Please capture the receipt again.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // Check if amounts assigned are empty
-                    if (amountsAssigned.value.isEmpty()) {
-                        Toast.makeText(context, "No amounts assigned. Please complete the calculation first.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // If all conditions are met, proceed with storing the receipt
-                    selectedGroup?.let { Log.d("groupId", it.id) }
-                    Log.d("receiptImageUrl", capturedImageUri.toString())
-                    Log.d("itemizedDetails", itemizedDetails.toString())
-                    Log.d("amountsAssigned", amountsAssigned.toString())
-                    Log.d("timestamp", Timestamp.now().toString())
-                    if (capturedImageUri != null) {
-                        uploadReceiptImageToFirebase(
-                            context = context,
-                            imageUri = capturedImageUri,
-                            onSuccess = { imageUrl ->
-                                storeReceiptDetailsInFirestore(
-                                    db = db,
-                                    groupId = selectedGroup?.id ?: "Unknown",
-                                    receiptImageUrl = imageUrl,
-                                    itemizedDetails = itemizedDetails.value,
-                                    amountsAssigned = amountsAssigned.value,
-                                    onSuccess = {
-                                        // Now send the receipt as a chat message
-                                        sendReceiptMessage(
-                                            db = db,
-                                            groupId = selectedGroup?.id ?: "Unknown",
-                                            userId = userId,
-                                            receiptImageUrl = imageUrl,
-                                            itemizedDetails = itemizedDetails.value,
-                                            amountsAssigned = amountsAssigned.value,
-                                            onSuccess = {
-                                                Toast.makeText(context, "Receipt stored and shared successfully!", Toast.LENGTH_SHORT).show()
-                                            },
-                                            onFailure = { exception ->
-                                                Toast.makeText(context, "Failed to send receipt message: ${exception.message}", Toast.LENGTH_SHORT).show()
-                                            }
-                                        )
-                                    },
-                                    onFailure = { exception ->
-                                        Toast.makeText(context, "Failed to store receipt: ${exception.message}", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            },
-                            onFailure = { exception ->
-                                Toast.makeText(context, "Failed to upload image: ${exception.message}", Toast.LENGTH_SHORT).show()
+                        Checkbox(
+                            checked = tempSelectedMembers.size == groupMembers.size,
+                            onCheckedChange = { checked ->
+                                tempSelectedMembers = if (checked) groupMembers else emptyList()
                             }
                         )
+                        Text("Assign to Everyone", modifier = Modifier.padding(start = 8.dp))
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = isCalculationComplete, // Enable button only if calculation is complete
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isCalculationComplete) Color(0xFF2A4174) else Color.Gray,
-                    contentColor = Color.White
+
+                    groupMembers.forEach { member ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    tempSelectedMembers =
+                                        if (tempSelectedMembers.contains(member)) {
+                                            tempSelectedMembers - member
+                                        } else {
+                                            tempSelectedMembers + member
+                                        }
+                                }
+                                .padding(8.dp)
+                        ) {
+                            Checkbox(
+                                checked = tempSelectedMembers.contains(member),
+                                onCheckedChange = { checked ->
+                                    tempSelectedMembers = if (checked) {
+                                        tempSelectedMembers + member
+                                    } else {
+                                        tempSelectedMembers - member
+                                    }
+                                }
+                            )
+                            Text(member, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    itemAssignments = itemAssignments + (dialogItem!! to tempSelectedMembers)
+                    selectedMembersMap = selectedMembersMap + (dialogItem!! to tempSelectedMembers)
+                    dialogItem = null
+                }) {
+                    Text("Done")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { dialogItem = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Text("Bill Splitter", style = MaterialTheme.typography.headlineMedium)
+            }
+
+            items(itemizedDetails.value) { item ->
+                val selectedMembers = selectedMembersMap[item] ?: emptyList()
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Text(item, modifier = Modifier.weight(1f))
+
+                        // Edit Button
+                        Button(
+                            onClick = {
+                                editItem = item
+                                val parts = item.split(":")
+                                editedItemName = parts[0].trim()
+                                editedItemCost = parts.getOrNull(1)?.trim()?.removePrefix("€") ?: ""
+                            },
+                            modifier = Modifier.width(80.dp)
+                        ) {
+                            Text("Edit")
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Assign Button
+                        Button(
+                            onClick = { dialogItem = item
+                                        isCalculationComplete = false // Reset calculation state
+                                      },
+                            modifier = Modifier.width(120.dp)
+                        ) {
+                            Text(if (selectedMembers.isEmpty()) "Assign to" else selectedMembers.joinToString(", "))
+                        }
+                    }
+                }
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        // Check if an image is captured
+                        if (capturedImageUri == null) {
+                            Toast.makeText(context, "Please capture an image of the receipt first.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val userAmounts = mutableMapOf<String, Double>()
+
+                        // Log the itemAssignments before calculation
+                        Log.d("ItemAssignments", "Item Assignments: $itemAssignments")
+
+                        // Calculate each person's share for each item
+                        itemizedDetails.value.forEach { item ->
+                            val cost = itemCosts[item] ?: 0.0
+                            val assignedMembers = itemAssignments[item] ?: emptyList()
+
+                            Log.d("BillSplitter", "Item: $item, Cost: $cost, Assigned Members: $assignedMembers")
+
+                            if (assignedMembers.isNotEmpty()) {
+                                // Split the item cost among assigned members
+                                val splitAmount = cost / assignedMembers.size
+                                Log.d("BillSplitter", "Split Amount for $item: $splitAmount")
+
+                                assignedMembers.forEach { member ->
+                                    userAmounts[member] = (userAmounts[member] ?: 0.0) + splitAmount
+                                }
+                            } else {
+                                Log.d("BillSplitter", "No members assigned to item: $item")
+                            }
+                        }
+
+                        // Debugging log
+                        Log.d("AmountsAssigned", "User amounts: $userAmounts")
+
+                        // Update amountsAssigned first
+                        amountsAssigned.value = userAmounts
+
+                        // Then mark calculation as complete
+                        isCalculationComplete = true
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Calculate")
+                }
+            }
+
+            items(amountsAssigned.value.entries.toList()) { (member, amount) ->
+                Text(
+                    "$member: €%.2f".format(amount),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(top = 16.dp)
                 )
-            ) {
-                Text("Store Receipt")
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        // Check if calculation is complete
+                        if (!isCalculationComplete) {
+                            Toast.makeText(context, "Please complete the calculation first.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        // Check if itemized details are empty
+                        if (itemizedDetails.value.isEmpty()) {
+                            Toast.makeText(context, "No itemized details found. Please capture the receipt again.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        // Check if amounts assigned are empty
+                        if (amountsAssigned.value.isEmpty()) {
+                            Toast.makeText(context, "No amounts assigned. Please complete the calculation first.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        // If all conditions are met, proceed with storing the receipt
+                        selectedGroup?.let { Log.d("groupId", it.id) }
+                        Log.d("receiptImageUrl", capturedImageUri.toString())
+                        Log.d("itemizedDetails", itemizedDetails.toString())
+                        Log.d("amountsAssigned", amountsAssigned.toString())
+                        Log.d("timestamp", Timestamp.now().toString())
+                        if (capturedImageUri != null) {
+                            uploadReceiptImageToFirebase(
+                                context = context,
+                                imageUri = capturedImageUri,
+                                onSuccess = { imageUrl ->
+                                    storeReceiptDetailsInFirestore(
+                                        db = db,
+                                        groupId = selectedGroup?.id ?: "Unknown",
+                                        receiptImageUrl = imageUrl,
+                                        itemizedDetails = itemizedDetails.value,
+                                        amountsAssigned = amountsAssigned.value,
+                                        onSuccess = {
+                                            // Now send the receipt as a chat message
+                                            sendReceiptMessage(
+                                                db = db,
+                                                groupId = selectedGroup?.id ?: "Unknown",
+                                                userId = userId,
+                                                receiptImageUrl = imageUrl,
+                                                itemizedDetails = itemizedDetails.value,
+                                                amountsAssigned = amountsAssigned.value,
+                                                onSuccess = {
+                                                    Toast.makeText(context, "Receipt stored and shared successfully!", Toast.LENGTH_SHORT).show()
+                                                },
+                                                onFailure = { exception ->
+                                                    Toast.makeText(context, "Failed to send receipt message: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            )
+                                        },
+                                        onFailure = { exception ->
+                                            Toast.makeText(context, "Failed to store receipt: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                },
+                                onFailure = { exception ->
+                                    Toast.makeText(context, "Failed to upload image: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = isCalculationComplete, // Enable button only if calculation is complete
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isCalculationComplete) Color(0xFF2A4174) else Color.Gray,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Store Receipt")
+                }
             }
         }
     }
