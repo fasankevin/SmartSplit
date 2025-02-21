@@ -33,7 +33,6 @@ This guide walks you through installation, usage, and troubleshooting while high
 ### 📱 **Permissions**
 When prompted, grant the following permissions:
 - **Camera Access:** Required to capture receipt images.
-- **Storage Access:** Needed to save receipt data.
 - **Notifications:** Recommended for bill updates and group alerts.
 
 💡 *Tip: If you skip permissions, enable them later via your device settings.*
